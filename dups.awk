@@ -30,7 +30,7 @@ BEGIN {
 	# the variable "name" can be set via the -v flag
 	dupname=name"dups.txt";
 	nodupname=name"merged_nodups.txt";
-	optname=name"opt_dups.txt"; #added
+	optname=name"optdups.txt"; 
 }
 # strand, chromosome, fragment match previous; first position (sorted) within wobble1
 

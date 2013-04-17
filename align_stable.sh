@@ -145,6 +145,17 @@ else
 		fi
 fi
 
+if [ ! -z $key ] 
+    then
+    if ! grep -q -m 1 $key /broad/aidenlab/neva/neva_scripts/hicInternalMenu.properties 
+        then 
+        echo "Cannot find key $key in hicInternalMenu.properties"
+        echo "Please use an existing key or omit the key option"
+        exit 1
+    fi
+fi
+
+
 
 ## Create output directory
 if [ -d "$outputdir" ]; then

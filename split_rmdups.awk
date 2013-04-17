@@ -34,11 +34,11 @@ END {
 	else {
 		waitstring=sprintf("%s || exit(%s)", waitstring, sname);
 	}
-	sysstring = sprintf("bsub -o %s -q %s -g %s -J %s_split -w \"done(%s_msplit*)\" \"cat %s/*_msplit*_dups.txt > %s/dups.txt;cat %s/*_msplit*_merged_nodups.txt > %s/merged_nodups.txt; \" ", outfile, queue, groupname, groupname, groupname, dir, dir, dir, dir);
+	sysstring = sprintf("bsub -o %s -q %s -g %s -J %s_split -w \"done(%s_msplit*)\" \"cat %s/*_msplit*_optdups.txt > %s/opt_dups.txt;  cat %s/*_msplit*_dups.txt > %s/dups.txt;cat %s/*_msplit*_merged_nodups.txt > %s/merged_nodups.txt; \" ", outfile, queue, groupname, groupname, groupname, dir, dir, dir, dir, dir, dir);
 	system(sysstring);
 	sysstring = sprintf("bsub -o %s -q %s -g %s_skill -w \"%s\" \"bkill -g %s 0; bkill -g %skill 0\" ",outfile, queue, groupname, waitstring, groupname, groupname);
 	system(sysstring);
- 	sysstring = sprintf("bsub -o %s -q %s -g %s -w \"done(%s_split)\" \"bkill -g %s_skill 0 ; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt; rm %s/split* \"", outfile, queue, groupname, groupname, groupname, dir, dir, dir);
+ 	sysstring = sprintf("bsub -o %s -q %s -g %s -w \"done(%s_split)\" \"bkill -g %s_skill 0 ; rm %s/*_msplit*_optdups.txt; rm %s/*_msplit*_dups.txt; rm %s/*_msplit*_merged_nodups.txt; rm %s/split* \"", outfile, queue, groupname, groupname, groupname, dir, dir, dir, dir);
 	system(sysstring);
 
 

@@ -101,6 +101,7 @@ my $inter_dangling = 0;
 my $true_dangling_intra_small = 0;
 my $true_dangling_intra_large = 0;
 my $true_dangling_inter = 0;
+my $total_current = 0;
 # logspace bins
 my @bins = (10,12,15,19,23,28,35,43,53,66,81,100,123,152,187,231,285,351,433,534,658,811,1000,1233,1520,1874,2310,2848,3511,4329,5337,6579,8111,10000,12328,15199,18738,23101,28480,35112,43288,53367,65793,81113,100000,123285,151991,187382,231013,284804,351119,432876,533670,657933,811131,1000000,1232847,1519911,1873817,2310130,2848036,3511192,4328761,5336699,6579332,8111308,10000000,12328467,15199111,18738174,23101297,28480359,35111917,43287613,53366992,65793322,81113083,100000000,123284674,151991108,187381742,231012970,284803587,351119173,432876128,533669923,657933225,811130831,1000000000,1232846739,1519911083,1873817423,2310129700,2848035868,3511191734,4328761281,5336699231,6579332247,8111308308,10000000000);
 
@@ -114,52 +115,10 @@ while (<FILE>) {
 }
 close(FILE);
 
-my($fname, $fdir) = fileparse($infile);
-my $tot_dups;
-my $opt_dups;
-
-if ($fname eq "merged_0.txt") {
-	my $line_counts;
-	my @tmp;
-	my $testname = ${fdir} . "dups.txt";
-	if (-e $testname) {
-    $line_counts = `wc -l ${fdir}dups.txt`;
-		@tmp = split(' ', $line_counts);
-		$tot_dups = $tmp[0];
-	}
-	else {
-		$tot_dups = 0;
-	}
-	$testname = ${fdir} . "opt_dups.txt";
-	if (-e $testname) {
-	  $line_counts = `wc -l ${fdir}opt_dups.txt`;
-		@tmp = split(' ', $line_counts);
-		$opt_dups = $tmp[0];
-	}
-  else {
-		$opt_dups = 0;
-	}
-	$testname = ${fdir} . "merged_nodups.txt";
-	if (-e $testname) {
-	  $line_counts = `wc -l ${fdir}merged_nodups.txt`;
-		@tmp = split(' ', $line_counts);
-		$total = $tmp[0];
-	}
-	else {
-		$total = 0;
-	}
-}
-else {
-	$tot_dups = 0;
-	$opt_dups = 0;
-}
-
-print "tot" . $total . " " . $tot_dups . " " . $opt_dups . "\n";
-
 # read in infile and calculate statistics
 open FILE, $infile or die $!;
 while (<FILE>) {
-	#$total++;
+	$total_current++;
 	my @record = split;
 
 	my $num_records = scalar(@record);
@@ -300,25 +259,17 @@ while (<FILE>) {
 	}
 }
 close(FILE);
-open FILE, " >> $stats_file", or die $!;
-print FILE "Total reads after duplication removal: " . commify($total) . "\n";
-print FILE "Duplicate reads: " . commify($tot_dups)  . "\n"; 
-my $tot_reads = $total + $tot_dups + $opt_dups;
-my $result = `java -cp /broad/aidenlab/neva/neva_scripts LibraryComplexity $tot_reads $total`;
-print FILE "$result";
 
-if ($total==0) {
-	$total=1;
+my($statsfilename, $directories, $suffix)= fileparse($stats_file, qr/\.[^.]*/);
+my $histsfile = $directories . $statsfilename . "_hists.m";
+my $statssupfile = $directories . $statsfilename . "_supp.txt";
+
+open FILE, " >> $stats_file", or die $!;
+print FILE "Total reads in current file: " . commify($total_current) . "\n";
+if ($total_current==0) {
+	$total_current=1;
 }
-printf FILE "Ligations: %s (%0.2f\%)\n", commify($ligation), $ligation*100/$total;
-printf FILE "Dangling: %s (%0.2f\%)\n", commify($dangling), $dangling*100/$total;
-printf FILE "  Very small: %s (%0.2f\%)\n", commify($very_small_dangling), $very_small_dangling*100/$total;
-printf FILE "  Small: %s (%0.2f\%)\n", commify($small_dangling),$small_dangling*100/$total;
-printf FILE "  Large: %s (%0.2f\%)\n", commify($large_dangling),$large_dangling*100/$total;
-printf FILE "  Inter: %s (%0.2f\%)\n", commify($inter_dangling),$inter_dangling*100/$total;
-printf FILE "  True Small: %s (%0.2f\%)\n", commify($true_dangling_intra_small),$true_dangling_intra_small*100/$total;
-printf FILE "  True Large: %s (%0.2f\%)\n", commify($true_dangling_intra_large),$true_dangling_intra_large*100/$total;
-printf FILE "  True Inter: %s (%0.2f\%)\n", commify($true_dangling_inter),$true_dangling_inter*100/$total;
+printf FILE "Ligations: %s (%0.2f\%)\n", commify($ligation), $ligation*100/$total_current;
 if ($five_prime_end + $three_prime_end > 0) {
 	printf FILE "Five prime: %s (%0.2f\%)\n", commify($five_prime_end), $five_prime_end*100/($five_prime_end + $three_prime_end);
 	printf FILE "Three prime: %s (%0.2f\%)\n", commify($three_prime_end), $three_prime_end*100/($five_prime_end + $three_prime_end);
@@ -327,11 +278,11 @@ else {
 	printf FILE "Five prime: $five_prime_end (%0.2f\%)\n", 0;
 	printf FILE "Three prime: $three_prime_end (%0.2f\%)\n", 0;
 }
-printf FILE "Inter: %s (%0.2f\%)\n", commify($inter), $inter*100/$total;
-printf FILE "Intra: %s (%0.2f\%)\n", commify($intra), $intra*100/$total;
-printf FILE "Small: %s (%0.2f\%)\n", commify($small), $small*100/$total;
-printf FILE "Large: %s (%0.2f\%)\n", commify($large), $large*100/$total;
-printf FILE "Very small: %s (%0.2f\%)\n", commify($very_small), $very_small*100/$total;
+printf FILE "Inter: %s (%0.2f\%)\n", commify($inter), $inter*100/$total_current;
+printf FILE "Intra: %s (%0.2f\%)\n", commify($intra), $intra*100/$total_current;
+printf FILE "Small: %s (%0.2f\%)\n", commify($small), $small*100/$total_current;
+printf FILE "Large: %s (%0.2f\%)\n", commify($large), $large*100/$total_current;
+printf FILE "Very small: %s (%0.2f\%)\n", commify($very_small), $very_small*100/$total_current;
 if ($large > 0) {
 	printf FILE "Inner: %s (%0.2f\%) \n", commify($inner), $inner*100/$large;
 	printf FILE "Outer: %s (%0.2f\%) \n", commify($outer), $outer*100/$large;
@@ -339,44 +290,52 @@ if ($large > 0) {
 	printf FILE "Right: %s (%0.2f\%) \n", commify($right), $right*100/$large;
 }
 close FILE;
-my($statsfilename, $directories, $suffix)= fileparse($stats_file, qr/\.[^.]*/);
-my $histsfile = $directories . $statsfilename . "_hists.m";
+
+open FILE, " > $statssupfile", or die $!;
+printf FILE "Dangling: %s (%0.2f\%)\n", commify($dangling), $dangling*100/$total_current;
+printf FILE "  Very small: %s (%0.2f\%)\n", commify($very_small_dangling), $very_small_dangling*100/$total_current;
+printf FILE "  Small: %s (%0.2f\%)\n", commify($small_dangling),$small_dangling*100/$total_current;
+printf FILE "  Large: %s (%0.2f\%)\n", commify($large_dangling),$large_dangling*100/$total_current;
+printf FILE "  Inter: %s (%0.2f\%)\n", commify($inter_dangling),$inter_dangling*100/$total_current;
+printf FILE "  True Small: %s (%0.2f\%)\n", commify($true_dangling_intra_small),$true_dangling_intra_small*100/$total_current;
+printf FILE "  True Large: %s (%0.2f\%)\n", commify($true_dangling_intra_large),$true_dangling_intra_large*100/$total_current;
+printf FILE "  True Inter: %s (%0.2f\%)\n", commify($true_dangling_inter),$true_dangling_inter*100/$total_current;
+close FILE;
+
 open FILE, "> $histsfile", or die $!; 
-print FILE "A = [";
+print FILE "A = [\n";
 for (my $i=1; $i <= 2000; $i++) {
 	my $tmp =	 $hindIII{$i} || 0;
 	print FILE "$tmp ";
 }
-print FILE "];\n";
-print FILE "B = [";
+print FILE "\n];\n";
+print FILE "B = [\n";
 for (my $i=0; $i <= 200; $i++) {
 	my $tmp = $mapQ{$i} || 0;
 	my $tmp2 = $mapQ_intra{$i} || 0;
 	my $tmp3 = $mapQ_inter{$i} || 0;
-	print FILE "$tmp,$tmp2,$tmp3; ";
+	print FILE "$tmp $tmp2 $tmp3\n ";
 }
-print FILE "];\n";
-print FILE "D = [";
+print FILE "\n];\n";
+print FILE "D = [\n";
 for (my $i=0; $i < scalar(@bins); $i++) {
 	my $tmp = $innerM{$i} || 0;
-	print FILE "$tmp,";
+	print FILE "$tmp ";
 	$tmp = $outerM{$i} || 0;
-	print FILE "$tmp,";
+	print FILE "$tmp ";
 	$tmp = $rightM{$i} || 0;
-	print FILE "$tmp,";
+	print FILE "$tmp ";
 	$tmp = $leftM{$i} || 0;
-	print FILE "$tmp;\n";
+	print FILE "$tmp\n";
 }
 
-print FILE "];";
-print FILE "x = [";
+print FILE "\n];";
+print FILE "x = [\n";
 for (my $i=0; $i < scalar(@bins); $i++) {
-	print FILE "$bins[$i],";
+	print FILE "$bins[$i] ";
 }
-print FILE "];";
-$str = "\'$outdir\'";
-
-system('matlab -nodisplay -r "addpath(\'/broad/aidenlab/neva/neva_scripts/\'); addpath( ' . ${str} . ');' . ${statsfilename} . '_hists; plotstats (A,B,D,x, \'' . ${directories} . ${statsfilename} . '\'); quit;" > /dev/null');
+print FILE "\n];\n";
+close FILE;
 
 # Find distance to nearest HindIII restriction site
 sub distHindIII {
@@ -394,16 +353,16 @@ sub distHindIII {
 	}
 	my $dist2 = abs($_[2] - $chromosomes{$_[1]}[$index]);
 	
-	if ($index == 0) {
-		if (!($_[2] >= 0 && $_[2] <= $chromosomes{$_[1]}[$index])) {
-	    print(STDERR "Problem not " . $_[2] . " >= 0 && <= " . $chromosomes{$_[1]}[$index] . " " . $_[1] . " index = " . $index . " chr = " . $_[1] . "\n");
-		}
-	}
-	else {
-		if (!($_[2] >= $chromosomes{$_[1]}[$index-1] && $_[2] <= $chromosomes{$_[1]}[$index])) {
-	    print(STDERR "Problem not " . $_[2] . " >= " . $chromosomes{$_[1]}[$index-1] . " && <= " . $chromosomes{$_[1]}[$index] . " index = " . $index . " chr = " . $_[1] . "\n");
-		}
-	}
+#	if ($index == 0) {
+#		if (!($_[2] >= 0 && $_[2] <= $chromosomes{$_[1]}[$index])) {
+#	    print(STDERR "Problem not " . $_[2] . " >= 0 && <= " . $chromosomes{$_[1]}[$index] . " " . $_[1] . " index = " . $index . " chr = " . $_[1] . "\n");
+#		}
+#	}
+#	else {
+#		if (!($_[2] >= $chromosomes{$_[1]}[$index-1] && $_[2] <= $chromosomes{$_[1]}[$index])) {
+#	    print(STDERR "Problem not " . $_[2] . " >= " . $chromosomes{$_[1]}[$index-1] . " && <= " . $chromosomes{$_[1]}[$index] . " index = " . $index . " chr = " . $_[1] . "\n");
+#		}
+#	}
 	# get minimum value -- if (dist1 <= dist2), it's dist1, else dist2
 	my $retval = $dist1 <= $dist2 ? $dist1 : $dist2; 
 	# get which end of the fragment this is, 3' or 5' (depends on strand)
