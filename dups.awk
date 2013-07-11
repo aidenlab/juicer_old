@@ -39,11 +39,18 @@ $1 == p1 && $2 == p2 && abs($3-p3)<=wobble1 && $4 == p4 && $5 == p5 && $6 == p6 
 	line[i]=$0;
 	pos1[i]=$3;
 	pos2[i]=$7;
-	split($15,readname,":");
-	tile[i]= readname[3] readname[4] readname[5];
-	x[i]= readname[6];
-	split(readname[7],y_array,"/");
-	y[i]= y_array[1];
+	n=split($15,readname,":");
+  if (n > 1) {
+    tile[i]= readname[3] readname[4] readname[5];
+    x[i]= readname[6];
+    split(readname[7],y_array,"/");
+    y[i]= y_array[1];
+  }
+  else {
+    # can't tell since it's not Illumina.
+    # make the tiles different so it's not an optical dup
+    tile[i]=i;
+  }
 	i++;
 }
 # not a duplicate, one of the fields doesn't match
@@ -110,11 +117,16 @@ $1 != p1 || $2 != p2 || $4 != p4 || $5 != p5 || $6 != p6 || $8 != p8 || abs($3-p
 	line[0]=$0;
 	pos1[0]=$3;
 	pos2[0]=$7;
-	split($15,readname,":"); 
-	tile[0]=readname[3] readname[4] readname[5]; 
-	x[0]=readname[6]; 
-	split(readname[7],y_array,"/");
-	y[0]=y_array[1];
+	n = split($15,readname,":");
+  if (n > 1) {
+	  tile[0]=readname[3] readname[4] readname[5]; 
+	  x[0]=readname[6]; 
+	  split(readname[7],y_array,"/");
+	  y[0]=y_array[1];
+  }
+  else {
+    tile[0]=0;
+  }
 }
 
 # always reset the fields we're checking against on each read 

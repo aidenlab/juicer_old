@@ -41,7 +41,7 @@ topDir=`pwd`
 # default queue, can also be set in options
 queue="hour"
 # restriction enzyme, can also be set in options
-site="HindIII"
+site="DpnII"
 # genome ID, must be set by user
 genomeID=""
 shortreadend=0
