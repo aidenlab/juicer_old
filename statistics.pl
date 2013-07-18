@@ -24,48 +24,40 @@
 # from the closest HindIII site, and a count of which end was closest to the
 # HindIII site.
 #
-# Usage:	statistics.pl <infile>
+# Usage:	statistics.pl [infile or stream]
 
 use File::Basename;
 use POSIX;
 use List::Util qw[min max];
 use Getopt::Std;
-use vars qw/ $opt_s $opt_l $opt_d $opt_o /;
+use vars qw/ $opt_s $opt_l $opt_d $opt_o $opt_h /;
 
 # Check arguments
-getopts('s:l:d:o:');
+getopts('s:l:o:h');
 
-my $site_file = "/broad/aidenlab/restriction_sites/hg19_HindIII.txt";
-my $ligation_junction = "AAGCTAGCTT";
-my $outdir;
+my $site_file = "/broad/aidenlab/restriction_sites/hg19_DpnII.txt";
+my $ligation_junction = "GATCGATC";
+my $stats_file = "stats.txt";
 
-if (scalar(@ARGV) == 1) {
-	($infile) = @ARGV;
-	($fname,$outdir,$suffix) = fileparse($infile);
-	$stats_file = $outdir . "/stats.txt";
+if ($opt_h) {
+    print "Usage: statistics.pl -s[site file] -l[ligation] -o[stats file] <infile>\n";
+    print " <infile>: file in intermediate format to calculate statistics on, can be stream\n";
+    print " [site file]: list of HindIII restriction sites, one line per chromosome (default $site_file)\n";
+    print " [ligation]: ligation junction (default $ligation_junction)\n";
+    print " [stats file]: output file containing total reads, for library complexity (default $stats_file)\n";
+    exit;
 }
-else {
-	print "Usage: statistics.pl -s[site file] -d[outdir] -l[ligation] -o[stats file] <infile>\n";
-	print " <infile>: file in intermediate format to calculate statistics on\n";
-	print " [site file]: list of HindIII restriction sites, one line per chromosome (default HindIII hg19)\n";
-	print " [outdir]: output directory for figures (default same directory as infile)\n";
-	print " [ligation]: ligation junction (default $ligation_junction)\n";
-	print " [stats file]: output file containing total reads, for library complexity (default infile directory/stats.txt)\n";
-	exit;
-}
-
-
 if ($opt_s) {
   $site_file = $opt_s;
 }
 if ($opt_l) {
   $ligation_junction = $opt_l;
 }
-if ($opt_d) {
-  $outdir = $opt_d;
-}
 if ($opt_o) {
-	$stats_file = $opt_o;
+  $stats_file = $opt_o;
+}
+if (scalar(@ARGV)==0) {
+  print STDOUT "No input file specified, reading from input stream\n";
 }
 
 my $dangling_junction = substr $ligation_junction, length($ligation_junction)/2;
@@ -116,8 +108,8 @@ while (<FILE>) {
 close(FILE);
 
 # read in infile and calculate statistics
-open FILE, $infile or die $!;
-while (<FILE>) {
+#open FILE, $infile or die $!;
+while (<>) {
 	$total_current++;
 	my @record = split;
 
@@ -258,7 +250,7 @@ while (<FILE>) {
 		}
 	}
 }
-close(FILE);
+#close(FILE);
 
 my($statsfilename, $directories, $suffix)= fileparse($stats_file, qr/\.[^.]*/);
 my $histsfile = $directories . $statsfilename . "_hists.m";

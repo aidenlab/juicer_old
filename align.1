@@ -3,8 +3,10 @@
 .SH NAME
 align.sh \- run pipeline to align fastq files and create HiC map
 .SH SYNOPSIS
-.B align.sh \-g 
+.B align.sh 
+.B [\-g
 .I genomeID 
+.B ]
 .B [\-d 
 .I topDir
 .B ] 
@@ -17,6 +19,9 @@ align.sh \- run pipeline to align fastq files and create HiC map
 .B [\-k
 .I key
 .B ]
+.B [\-a
+.I about
+.B ]
 .B [\-R
 .I end
 .B ] [\-r] [\-h] [\-e]
@@ -24,7 +29,7 @@ align.sh \- run pipeline to align fastq files and create HiC map
 .B align.sh
 is the alignment script pipeline. It first sets the reference genome based on
 .I genomeID
-, which must be one of "mm9" (mouse), "hg19" (human), or "dMel"
+, which must be one of "mm9" (mouse), "hg19" (human, default), or "dMel"
 (fly). It then looks in the directory
 .I topDir
 /fastq for fastq files.  
@@ -36,7 +41,7 @@ It creates two new directories,
 /splits and
 .I topDir
 /aligned, then splits the .fastq files into files in the splits/
-directory containing 2,000,000 lines each (chosen because the
+directory containing 6,000,000 lines each (chosen because the
 alignment will finish within an hour on a file of that size).
 It then launches jobs to align the split files and merge them after
 alignment. A final merge and final cleanup job are also created.  If
@@ -49,15 +54,21 @@ merged_nodups.txt which contains all alignable non-chimeric reads in
 ASCII text. The columns in that file are
 .RS 
 strand1 chr1 pos1 frag1 strand2 chr2 pos2 frag2 mapq1 cig1 seq1 mapq2
-cig2 seq2
+cig2 seq2 read1 read2
 .RE
 There will also be a inter.hic file containing the HiC map, a
-inter.txt file containing the stats, a inter_hists.m file for quality control, and .jpg files
-produced from the inter_hists.m file.  There will also be these same
-files for MAPQ >= 30, with the prefix inter_30.  The splits directory may be deleted
+inter.txt file containing the stats, and a inter_hists.m file for quality control.  There will also be these same
+files for MAPQ >= 30, with the prefix inter_30. Supplemental stats are
+found in inter_supp.txt.  Stats are produced for the dups file as well.
+The splits directory may be deleted
 after execution to save space.  A symlink to the inter* files should
 be created in the html directory so the viewer can see the files.
 .SH OPTIONS
+.IP "-g genomeID"
+Use a different genome than hg19.  Must be one of
+"hg19", "dMel", or "mm9"
+.I genomeID
+as the genome to align to.
 .IP "-d topDir"
 Use 
 .I topDir
@@ -71,12 +82,17 @@ as the top level directory.
 .IP "-q queue"
 Change the default LSF queue from hour to
 .I queue
+Must be one of
+"hour", "priority", or "week"
 .IP "-s site"
-Use a different restriction site than HindIII. Must be one of 
+Use a different restriction site than DpnII. Must be one of 
 "HindIII", "MseI", "NcoI", "DpnII", "MspI","HinP1I", "StyD4I", "SaII", "NheI", "StyI", "XhoI", or "merge" 
 .IP "-k key"
 Key for the menu that this new file will go beneath (used in
 properties file, only applies for MiSeq runs) 
+.IP "-a about"
+Description of experiment, enclosed in single quotes. Will print to
+statistics file.
 .IP "-R end"
 Use the short read aligner for the specified end. Must be 1 or 2
 .IP -r 

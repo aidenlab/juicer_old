@@ -42,12 +42,13 @@ topDir=`pwd`
 queue="hour"
 # restriction enzyme, can also be set in options
 site="DpnII"
-# genome ID, must be set by user
-genomeID=""
+# genome ID, default to human, can also be set in options
+genomeID="hg19"
 shortreadend=0
+about=""
 
 ## Read arguments
-usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-q queue] [-s site] [-k key] [-R end] [-r] [-e] [-h]"
+usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-q queue] [-s site] [-k key] [-a about] [-R end] [-r] [-e] [-h]"
 genomeHelp="   genomeID must be one of \"mm9\" (mouse), \"hg19\" (human), \"sCerS288c\" (yeast), or \"dMel\" (fly)"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="   [queue] is the LSF queue for running alignments (default \"$queue\")"
@@ -56,6 +57,7 @@ shortHelp2="   [end]: use the short read aligner on end, must be one of 1 or 2 "
 shortHelp="   -r: use the short read version of the aligner (default long read)"
 keyHelp="   -k: key for menu item to put this file under"
 exitHelp="   -e: early exit; align but don't combine sorted files"
+aboutHelp="    -a: enter description of experiment, enclosed in single quotes"
 helpHelp="   -h: print this help and exit"
 moreHelp="For more information, type:\n\tgroff -man -Tascii /broad/aidenlab/neva/neva_scripts/align.1 | less"
 
@@ -69,12 +71,13 @@ printHelpAndExit() {
     echo "$shortHelp2"
 		echo "$shortHelp"
 		echo "$exitHelp"
+    echo "$aboutHelp"
     echo "$helpHelp"
     echo -e "$moreHelp"
     exit $1
 }
 
-while getopts "d:g:R:k:hreq:s:" opt; do
+while getopts "d:g:R:k:a:hreq:s:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -85,9 +88,11 @@ while getopts "d:g:R:k:hreq:s:" opt; do
 	R) shortreadend=$OPTARG ;;
 	r) shortread=1 ;;  #use short read aligner
 	e) earlyexit=1 ;;
+  a) about=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
 done
+
 
 ## Set reference sequence based on genome ID
 case $genomeID in
@@ -265,8 +270,9 @@ echo "splitdir=\"$splitdir\"" >> tmp2
 echo "outputdir=\"$outputdir\"" >> tmp2
 echo "ligation=\"$ligation\"" >> tmp2
 echo "genomeID=\"$genomeID\"" >> tmp2
+echo "about=\"$about\"" >> tmp2
 echo "shortreadend=$shortreadend" >> tmp2
-flags="-g $genomeID -d $topDir -s $site -q $queue"
+flags="-g $genomeID -d $topDir -s $site -q $queue -a '$about'"
 echo "flags=\"$flags\" " >> tmp2
 if [ $shortread ]; then
 		echo "shortread=$shortread" >> tmp2
