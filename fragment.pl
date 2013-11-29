@@ -5,14 +5,14 @@
 #
 # strand1 chr1 pos1 strand2 chr2 pos2 mapq1 sequence1 mapq2 sequence2 
 #
-# The script also requires a HindIII restriction site file, which lists on 
-# each line, the sorted locations of the HindIII restriction sites.
+# The script also requires a restriction site file, which lists on 
+# each line, the sorted locations of the enzyme restriction sites.
 #
 # Usage:  fragment.pl <infile>
 
 use POSIX;
 
-$site_file = "/broad/aidenlab/restriction_sites/hg19_HindIII.txt";
+$site_file = "/broad/aidenlab/restriction_sites/hg19_DpnII.txt";
 # Check arguments
 if (scalar(@ARGV) == 1) {
   ($infile) = @ARGV;
@@ -23,7 +23,7 @@ elsif (scalar(@ARGV) == 2) {
 else {
   print "Usage: fragment.pl <infile> [site file]\n";
   print " <infile>: file in intermediate format to calculate statistics on\n";
-  print " [site file]: list of restriction sites, one line per chromosome (default HindIII hg19)\n";
+  print " [site file]: list of restriction sites, one line per chromosome (default DpnII hg19)\n";
   exit;
 }
 

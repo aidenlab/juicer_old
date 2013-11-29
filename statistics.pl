@@ -113,6 +113,11 @@ while (<>) {
 	$total_current++;
 	my @record = split;
 
+  #if ($record[1] != 1 || $record[5] != 1) {
+  #  print STDERR "break";
+  #  last;
+  #}
+
 	my $num_records = scalar(@record);
 	# position distance
 	my $pos_dist = abs($record[2] - $record[6]);
@@ -125,7 +130,6 @@ while (<>) {
 		$dangling++;
 		$is_dangling=1;
 	}
-	
 	# look at chromosomes
 	if ($record[1] eq $record[5]) {
 		$intra++;
