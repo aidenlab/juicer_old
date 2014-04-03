@@ -67,7 +67,7 @@ BEGIN{
 				split(c[j], tmp);
 				split(tmp[1],readname,"/");
 				read[j] = readname[2];
-				name[j] = readname[1];
+				name[j] = tmp[1];
 
 				# strand
 				str[j] = tmp[2];
@@ -81,6 +81,7 @@ BEGIN{
 				cigarstr[j] = tmp[6];
 				# sequence
 				seq[j] = tmp[10];
+        qual[j] = tmp[11];
 				# get rid of soft clipping to know correct position
 				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
 					split(tmp[6], cigar, "S");
@@ -145,10 +146,10 @@ BEGIN{
 				if (mapped[read1] && mapped[read2]) {
 					count_norm++;
 					if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
-						print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+              print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
 					}
 					else {
-						print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+              print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
 					}
 				}
 				else {
@@ -185,7 +186,8 @@ BEGIN{
 				m[j] = tmp[5];
 				cigarstr[j] = tmp[6];
 				seq[j] = tmp[10];
-				name[j]=readname[1];
+        qual[j] = tmp[11];
+				name[j] = tmp[1];
 				
 
 				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
@@ -222,10 +224,10 @@ BEGIN{
 				count_reg++;
 				if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
 					# ideally we'll get rid of printing out cigar string at some point
-					print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1] > fname1;
+            print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1] > fname1;
 				}
 				else {
-					print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0] > fname1;
+            print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0] > fname1;
 				}
       }
       else {

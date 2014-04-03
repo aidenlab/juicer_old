@@ -22,14 +22,9 @@ BEGIN{
   else {
     # deal with read pair group
     tottot++;
-#    printme = 0;
     printme = 1;
     j = 0;
     for (i in c) {
-      # line contains ligation junction
-#      if (c[i] ~ /AAGCTAGCTT/) {
-#	printme = 1;
-#      }
       split(c[i], tmp);
       mapped[j] = tmp[3] ~ /^[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/;
       name[j] = tmp[1];
@@ -51,7 +46,8 @@ BEGIN{
             }
         }
     }
-    if (printme && bigdist >= 3) {
+#    printme = printme && (bigdist >= 3);
+    if (printme) {
       for (j = 0; j < len; j++) {
           printf("%s %d %s %d %d %s %s ", name[j], str[j], chr[j], pos[j], m[j], cig[j], seq[j]);
       }
@@ -65,4 +61,37 @@ BEGIN{
   }
   # these happen no matter what, after the above processing
   c[count] = $0;
+}
+END {
+    printme = 1;
+    j = 0;
+    for (i in c) {
+      split(c[i], tmp);
+      mapped[j] = tmp[3] ~ /^[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/;
+      name[j] = tmp[1];
+      str[j] = tmp[2];
+      chr[j] = tmp[3];
+      pos[j] = tmp[4];
+      m[j] = tmp[5];
+      cig[j] = tmp[6];
+      seq[j] = tmp[10];
+      j++;
+    }
+    len = j;
+    bigdist = 0;
+    for (j=0; j<len; j++) {
+        printme = printme && mapped[j] && (m[j] >= 10);
+        for (k=j+1; k<len; k++) {
+            if (abs(pos[j]-pos[k]) >= 20000) {
+                bigdist++;
+            }
+        }
+    }
+#    printme = printme && (bigdist >= 3);
+    if (printme) {
+      for (j = 0; j < len; j++) {
+          printf("%s %d %s %d %d %s %s ", name[j], str[j], chr[j], pos[j], m[j], cig[j], seq[j]);
+      }
+      printf("\n");
+    }
 }

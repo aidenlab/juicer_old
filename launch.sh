@@ -3,6 +3,9 @@
 ## merge. When merge jobs successfully finish, can launch final merge job.  
 ## If any of the jobs fail, the cleanup job will execute and kill the 
 ## remaining ones.
+
+## Probably in an ideal world, this would be a script that is not concatenated
+## but launched on its own with appropriate flags.
 countjobs=0
 declare -a ARRAY
 
@@ -12,6 +15,7 @@ newdir="/broad/aidenlab/hic_files/"${hicdir}
 newleaf=$(date "+%Y_%m_%d_%H_%M_%S")
 #newleaf=$(awk '$1 ~ /leaf0/{split($1,a,"f");if (max < a[2]){max = a[2]}}END{print max+1}' /broad/aidenlab/hic_files/hicInternalMenu.properties)
 
+# Only used for MiSeq files; if no key is given, put under menu item "Latest"
 if [ -z "$key" ]; then 
 		key="Latest"
 fi
@@ -37,6 +41,7 @@ do
   echo -e "#BSUB -g $groupname" >> tmp
   echo -e "#BSUB -J $groupname$name1$ext" >> tmp
   echo -e "source /broad/software/scripts/useuse\nreuse .bwa-0.6.2" >> tmp
+  # short read aligner is bwa aln; long read is bwasw.  In the future use only bwa mem.
   if [ $shortread ] || [ $shortreadend -eq 1 ]
   then
     echo "bwa aln $refSeq $name1$ext > $name1$ext.sai" >> tmp
@@ -81,17 +86,25 @@ do
   echo -e "#BSUB -J ${groupname}merge${name}${ext}\n" >> tmp
   echo -e "source /broad/software/scripts/useuse\nreuse Java-1.6" >> tmp
   echo -e "export LC_ALL=C" >> tmp
-  echo -e "sort -k1,1 $name1$ext.sam > $name1${ext}_sort.sam" >> tmp
-  echo -e "sort -k1,1 $name2$ext.sam > $name2${ext}_sort.sam" >> tmp
+  # sort read 1 aligned file by readname 
+  echo -e "if ! sort -k1,1 $name1$ext.sam > $name1${ext}_sort.sam" >> tmp
+  echo -e "then exit 1; fi" >> tmp
+  # sort read 2 aligned file by readname 
+  echo -e "if ! sort -k1,1 $name2$ext.sam > $name2${ext}_sort.sam" >> tmp
+  echo -e "then exit 1; fi" >> tmp
+  # remove header, add read end indicator toreadname
   echo -e "awk 'NF > 5{\$1 = \$1\"/1\";print}' $name1${ext}_sort.sam > $name1${ext}_sort1.sam" >> tmp
   echo -e "awk 'NF > 5{\$1 = \$1\"/2\";print}' $name2${ext}_sort.sam > $name2${ext}_sort1.sam" >> tmp
+  # merge the two sorted read end files
   echo -e "sort -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > $name$ext.sam" >> tmp
   echo -e "rm $name1$ext.sa* $name2$ext.sa* $name1${ext}_sort*.sam $name2${ext}_sort*.sam" >> tmp
-
+  # call chimeric.awk to deal with chimeric reads; sorted file is sorted by read name at this point
   echo -e "awk -v \"fname1\"=$name${ext}_norm.txt -v \"fname2\"=$name${ext}_abnorm.sam -v \"fname3\"=$name${ext}_unmapped.sam -f /broad/aidenlab/neva/neva_scripts/chimeric.awk $name$ext.sam" >> tmp
+  # if any normal reads were written, find what fragment they correspond to and store that
 	echo -e "if [ -e \"$name${ext}_norm.txt\" ]" >> tmp
 	echo -e "then " >> tmp 
 	echo -e "/broad/aidenlab/neva/neva_scripts/fragment.pl $name${ext}_norm.txt $site_file > $name${ext}.frag.txt" >> tmp
+  # sort by chromosome, fragment, strand, and position
 	echo -e "sort -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $name${ext}.frag.txt > $name${ext}.sort.txt" >> tmp
 	echo -e "rm $name${ext}_norm.txt $name${ext}.frag.txt" >> tmp
 	echo -e "fi" >> tmp	
@@ -133,58 +146,60 @@ echo -e "bkill -g ${groupname}kill 0\n" >> tmp
 bsub < tmp
 rm tmp
 
+# merge the sorted files into one giant file that is also sorted.
+echo -e "#!/bin/bash -l" > tmp
+echo -e "#BSUB -q $queue" >> tmp
+echo -e "#BSUB -o $topDir/lsf.out" >> tmp
+echo -e "#BSUB -g $groupname" >> tmp
+echo -e "#BSUB -w \"done(${groupname}merge*)\" " >> tmp
+echo -e "#BSUB -J ${groupname}_fragmerge" >> tmp
+		
+echo -e	"export LC_ALL=C" >> tmp
+echo -e "sort -T /broad/hptmp/neva -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt" >> tmp 
+bsub < tmp
+
+# if it dies, cleanup and write to relaunch script
+# note that the relaunch script gets written over so the relaunch script isn't always correct and doesn't work the way I intended.
+echo -e "#!/bin/bash -l" > tmp
+echo -e "#BSUB -q $queue" >> tmp
+echo -e "#BSUB -o $topDir/lsf.out" >> tmp
+echo -e "#BSUB -g ${groupname}_clean" >> tmp
+echo -e "#BSUB -J ${groupname}_clean1" >> tmp
+echo -e "#BSUB -w \"exit(${groupname}_fragmerge)\"" >> tmp
+echo -e "echo \"/broad/aidenlab/neva/neva_scripts/relaunch.sh $flags -m\" > $topDir/relaunchme.sh  " >> tmp
+echo -e "bkill -g $groupname 0" >> tmp
+bsub < tmp
+rm tmp
+		
+# if jobs succeeded, kill the cleanup job, remove the duplicates from the big sorted file
+echo -e "#!/bin/bash -l" > tmp
+echo -e "#BSUB -q $queue" >> tmp
+echo -e "#BSUB -o $topDir/lsf.out" >> tmp
+echo -e "#BSUB -g $groupname" >> tmp
+echo -e "#BSUB -w \"done(${groupname}_fragmerge*)\" " >> tmp
+echo -e "#BSUB -J ${groupname}_osplit" >> tmp
+echo -e "bkill -J ${groupname}_clean1" >> tmp
+echo -e "awk -v queue=$queue -v outfile=$topDir/lsf.out -v groupname=$groupname -v dir=$outputdir -f /broad/aidenlab/neva/neva_scripts/split_rmdups.awk $outputdir/merged_sort.txt" >> tmp
+		
+bsub < tmp
+rm tmp
+
+# if it dies, cleanup and write to relaunch script
+echo -e "#!/bin/bash -l" > tmp
+echo -e "#BSUB -q $queue" >> tmp
+echo -e "#BSUB -o $topDir/lsf.out" >> tmp
+echo -e "#BSUB -g ${groupname}_clean" >> tmp
+echo -e "#BSUB -J ${groupname}_clean2" >> tmp
+echo -e "#BSUB -w \"exit(${groupname}_osplit)\"" >> tmp
+echo -e "echo \"/broad/aidenlab/neva/neva_scripts/relaunch.sh $flags -m \" > $topDir/relaunchme.sh  " >> tmp
+echo -e "bkill -g $groupname 0" >> tmp
+echo -e "bkill -g ${groupname}_clean 0" >> tmp
+bsub < tmp
+rm tmp
+
+# if early exit, we stop here, once the merged_nodups.txt file is created.
 if [ -z "$earlyexit" ]
-	then
-		echo -e "#!/bin/bash -l" > tmp
-		echo -e "#BSUB -q $queue" >> tmp
-		echo -e "#BSUB -o $topDir/lsf.out" >> tmp
-		echo -e "#BSUB -g $groupname" >> tmp
-		echo -e "#BSUB -w \"done(${groupname}merge*)\" " >> tmp
-		echo -e "#BSUB -J ${groupname}_fragmerge" >> tmp
-		
-		echo -e	"export LC_ALL=C" >> tmp
-		echo -e "sort -T /broad/hptmp/neva -m -k2,2d -k6,6d -k4,4n -k8,8n -k1,1n -k5,5n -k3,3n $splitdir/*.sort.txt  > $outputdir/merged_sort.txt" >> tmp 
-		bsub < tmp
-
-		# if it dies, cleanup and write to relaunch script
-		echo -e "#!/bin/bash -l" > tmp
-		echo -e "#BSUB -q $queue" >> tmp
-		echo -e "#BSUB -o $topDir/lsf.out" >> tmp
-		echo -e "#BSUB -g ${groupname}_clean" >> tmp
-		echo -e "#BSUB -J ${groupname}_clean1" >> tmp
-		echo -e "#BSUB -w \"exit(${groupname}_fragmerge)\"" >> tmp
-		echo -e "echo \"/broad/aidenlab/neva/neva_scripts/relaunch.sh $flags -m\" > $topDir/relaunchme.sh  " >> tmp
-		echo -e "bkill -g $groupname 0" >> tmp
-		bsub < tmp
-		rm tmp
-
-		
-		# if jobs succeeded, kill the cleanup job, merge the sam files into one, 
-		# convert it to our format, and run hictools
-		echo -e "#!/bin/bash -l" > tmp
-		echo -e "#BSUB -q $queue" >> tmp
-		echo -e "#BSUB -o $topDir/lsf.out" >> tmp
-		echo -e "#BSUB -g $groupname" >> tmp
-		echo -e "#BSUB -w \"done(${groupname}_fragmerge*)\" " >> tmp
-		echo -e "#BSUB -J ${groupname}_osplit" >> tmp
-		echo -e "bkill -J ${groupname}_clean1" >> tmp
-		echo -e "awk -v queue=$queue -v outfile=$topDir/lsf.out -v groupname=$groupname -v dir=$outputdir -f /broad/aidenlab/neva/neva_scripts/split_rmdups.awk $outputdir/merged_sort.txt" >> tmp
-		
-		bsub < tmp
-		rm tmp
-
-		# if it dies, cleanup and write to relaunch script
-		echo -e "#!/bin/bash -l" > tmp
-		echo -e "#BSUB -q $queue" >> tmp
-		echo -e "#BSUB -o $topDir/lsf.out" >> tmp
-		echo -e "#BSUB -g ${groupname}_clean" >> tmp
-		echo -e "#BSUB -J ${groupname}_clean2" >> tmp
-		echo -e "#BSUB -w \"exit(${groupname}_osplit)\"" >> tmp
-		echo -e "echo \"/broad/aidenlab/neva/neva_scripts/relaunch.sh $flags -m \" > $topDir/relaunchme.sh  " >> tmp
-		echo -e "bkill -g $groupname 0" >> tmp
-		echo -e "bkill -g ${groupname}_clean 0" >> tmp
-		bsub < tmp
-		rm tmp
+    then
 		echo -e "#!/bin/bash -l" > tmp
 		echo -e "#BSUB -q $queue" >> tmp
 		echo -e "#BSUB -o $topDir/lsf.out" >> tmp

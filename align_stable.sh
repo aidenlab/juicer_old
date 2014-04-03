@@ -1,10 +1,13 @@
 #!/bin/bash
 # Alignment script. Sets the reference genome and genome ID based on the input
-# arguments. Optional arguments are the queue for the alignment (default hour)
-# and the top-level directory (default current directory) 
+# arguments (default human, DpnII). Optional arguments are the queue for the alignment 
+# (default hour), key for menu entry, description, read end, early exit, 
+# and the top-level directory (default current directory).
+#
 # Splits the fastq files, creates jobs to align them, creates merge jobs that 
 # wait for the alignment to finish, and creates a final merge and final 
 # cleanup job (in case one of the jobs failed).
+#
 # If all is successful, takes the final merged file, removes name duplicates, 
 # removes PCR duplicates, and creates the hic job and stats job.  Final 
 # product will be hic file and stats file in the aligned directory.
@@ -30,9 +33,9 @@
 #             match any files with the read1str.
 shopt -s extglob
 
-splitsize=6000000 #adjust to match your needs.  40000000 = 1M reads per split
-read1str="_R1"
-read2str="_R2"
+splitsize=6000000 # adjust to match your needs.  40000000 = 1M reads per split
+read1str="_R1" # fastq files should look like filename_R1.fastq and filename_R2.fastq
+read2str="_R2" # if your fastq files look different, change this value
 
 # unique name for group in case we need to kill jobs
 groupname="/a"`date +%s`
@@ -44,20 +47,22 @@ queue="hour"
 site="DpnII"
 # genome ID, default to human, can also be set in options
 genomeID="hg19"
+# normally both read ends are aligned with long read aligner; if one end is short, this is set
 shortreadend=0
+# description, default empty
 about=""
 
 ## Read arguments
 usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-q queue] [-s site] [-k key] [-a about] [-R end] [-r] [-e] [-h]"
-genomeHelp="   genomeID must be one of \"mm9\" (mouse), \"hg19\" (human), \"sCerS288c\" (yeast), or \"dMel\" (fly)"
+genomeHelp="   genomeID must be one of \"mm9\" (mouse), \"hg18\" \"hg19\" (human), \"sCerS288c\" (yeast), or \"dMel\" (fly)\n   alternatively, it can be the fasta file of the genome, but the BWA indices must already be created in the same directory"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="   [queue] is the LSF queue for running alignments (default \"$queue\")"
 siteHelp="   [site] must be one of \"HindIII\", \"MseI\", \"NcoI\", \"DpnII\", \"MspI\", \"HinP1I\", \"StyD4I\", \"SaII\", \"NheI\", \"StyI\", \"XhoI\", \"NlaIII\", or \"merge\" (default \"$site\")"
 shortHelp2="   [end]: use the short read aligner on end, must be one of 1 or 2 "
 shortHelp="   -r: use the short read version of the aligner (default long read)"
 keyHelp="   -k: key for menu item to put this file under"
-exitHelp="   -e: early exit; align but don't combine sorted files"
-aboutHelp="    -a: enter description of experiment, enclosed in single quotes"
+exitHelp="   -e: early exit; align, sort, merge, and dedup (ends with merged_nodups.txt)"
+aboutHelp="   -a: enter description of experiment, enclosed in single quotes"
 helpHelp="   -h: print this help and exit"
 moreHelp="For more information, type:\n\tgroff -man -Tascii /broad/aidenlab/neva/neva_scripts/align.1 | less"
 
@@ -77,7 +82,7 @@ printHelpAndExit() {
     exit $1
 }
 
-while getopts "d:g:R:k:a:hreq:s:" opt; do
+while getopts "d:g:R:k:a:hrefq:s:" opt; do
     case $opt in
 	g) genomeID=$OPTARG ;;
 	h) printHelpAndExit 0;;
@@ -88,6 +93,7 @@ while getopts "d:g:R:k:a:hreq:s:" opt; do
 	R) shortreadend=$OPTARG ;;
 	r) shortread=1 ;;  #use short read aligner
 	e) earlyexit=1 ;;
+  f) fastq=1 ;;
   a) about=$OPTARG ;;
 	[?]) printHelpAndExit 1;;
     esac
@@ -100,11 +106,12 @@ case $genomeID in
     mm9) refSeq="/broad/aidenlab/references/Mus_musculus_assembly9_norandom.fasta";;
     hg19) refSeq="/seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta";;
 		sCerS288c) refSeq="/broad/aidenlab/references/sacCer3.fa";;
-    *)  echo "$usageHelp"
+    *)  refSeq=$genomeID;;
 	echo "$genomeHelp"
 	exit 1
 esac
 
+## Set ligation junction based on restriction enzyme
 case $site in
     HindIII) ligation="AAGCTAGCTT";;
     MseI)  ligation="TTATAA";;
@@ -115,6 +122,7 @@ case $site in
 				exit 1
 esac
 
+## If short read end is set, make sure it is 1 or 2
 case $shortreadend in
 		0) ;;
 		1) ;;
@@ -124,14 +132,17 @@ case $shortreadend in
 			 exit 1
 esac
 
+## Hard-coded directory here; in future versions, this should be packaged with script
 site_file="/broad/aidenlab/restriction_sites/${genomeID}_${site}.txt"
 splitdir=$topDir"/splits"
 fastqdir=$topDir"/fastq/*_R*.fastq"
 outputdir=$topDir"/aligned"
 read1=$splitdir"/*${read1str}*.fastq"
+## ARRAY holds the names of the jobs as they are submitted
 countjobs=0
 declare -a ARRAY
 
+## Check that fastq directory exists and has proper fastq files
 if [ ! -d "$topDir/fastq" ]; then
 		echo "Directory \"$topDir/fastq\" does not exist."
 		echo "Create \"$topDir/$fastq\" and put fastq files to be aligned there."
@@ -150,6 +161,7 @@ else
 		fi
 fi
 
+## If key option is given, check that the key exists in the menu properties file
 if [ ! -z $key ] 
     then
     if ! grep -q -m 1 $key /broad/aidenlab/neva/neva_scripts/hicInternalMenu.properties 
@@ -160,8 +172,6 @@ if [ ! -z $key ]
     fi
 fi
 
-
-
 ## Create output directory
 if [ -d "$outputdir" ]; then
     echo "Move or remove directory \"$outputdir\" before proceeding."
@@ -171,7 +181,6 @@ fi
 
 mkdir $outputdir
 
-
 ## Create split directory
 if [ -d "$splitdir" ]; then
     splitdirexists=1
@@ -179,19 +188,19 @@ else
     mkdir $splitdir
 fi
 
-## Create temporary directory
+## Create temporary directory, used for sort later
 if [ ! -d "/broad/hptmp/neva" ]; then
     mkdir /broad/hptmp/neva
 fi
 
+## use LSF cluster on Broad
 source /broad/software/scripts/useuse
 reuse LSF
 
 echo -e "Aligning files matching $fastqdir\n in queue $queue to genome $genomeID"
 
-
-
 ## Split fastq files into smaller portions for parallelizing alignment 
+## Do this by creating a text script file for the job in "tmp" and then sending it to LSF
 if [ ! $splitdirexists ]; then
     echo "Created $splitdir and $outputdir.  Splitting files"
     for i in ${fastqdir}
@@ -210,6 +219,8 @@ if [ ! $splitdirexists ]; then
 			rm tmp
     done 
 
+
+    # Once split succeeds, rename the splits as fastq files
 		echo -e '#!/bin/bash -l' > tmp
 		echo -e "#BSUB -q priority" >> tmp
 		echo -e "#BSUB -o $topDir/lsf.out\n" >> tmp
@@ -224,6 +235,8 @@ if [ ! $splitdirexists ]; then
 		ARRAY[countjobs]="${groupname}move"
 		countjobs=$(( $countjobs + 1 ))
 
+    # for all the jobs that have been launched so far, create a condition in case
+    # any of them exit prematurely
 		for (( i=0; i < countjobs; i++ ))
 			do
 			if [ $i -eq 0 ]; then
@@ -245,9 +258,14 @@ if [ ! $splitdirexists ]; then
 		bsub < tmp		
 		rm tmp
 else
+    # No need to re-split fastqs if they already exist
     echo -e "Using already created files in $splitdir \n"
 fi
 
+## Launch job.  Once split is done, kill the cleanup job, then
+## set the parameters for the launch.  Concatenate the script
+## "launch.sh" to this script.  This will start the rest of the 
+## parallel jobs.
 echo -e '#!/bin/bash -l' > tmp2
 echo -e "#BSUB -q priority" >> tmp2
 echo -e "#BSUB -o $topDir/lsf.out\n" >> tmp2
