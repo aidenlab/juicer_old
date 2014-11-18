@@ -8,38 +8,53 @@ import java.io.IOException;
 import java.io.File;
 class LibraryComplexity {
   public static void main(String[] args) {
-    if (args.length != 1) {
+    if (args.length != 1 && args.length != 3) {
       System.out.println("Usage: java LibraryComplexity <directory>");
+      System.out.println("     : java LibraryComplexity <unique> <pcr> <opt>");
       System.exit(0);
     }
     BufferedReader reader = null;
     long readPairs = 0;
     long uniqueReadPairs = 0;
     long opticalDups = 0;
-    try {
-      File f = new File(args[0] + "/opt_dups.txt");
-      if (f.exists()) {
-        reader = new BufferedReader(new FileReader(f));
-        while (reader.readLine() != null) opticalDups++;
-        reader.close();
+    if (args.length == 1) {
+      try {
+        File f = new File(args[0] + "/opt_dups.txt");
+        if (f.exists()) {
+          reader = new BufferedReader(new FileReader(f));
+          while (reader.readLine() != null) opticalDups++;
+          reader.close();
+        }
+        
+        f = new File(args[0] + "/merged_nodups.txt");
+        if (f.exists()) {
+          reader = new BufferedReader(new FileReader(f));
+          while (reader.readLine() != null) uniqueReadPairs++;
+          reader.close();				
+        }
+        f = new File(args[0] + "/dups.txt");
+        if (f.exists()) {
+          reader = new BufferedReader(new FileReader(args[0] + "/dups.txt"));
+          while (reader.readLine() != null) readPairs++;
+          reader.close();				
+          readPairs += uniqueReadPairs; 
+        }
+      } catch (IOException error) {
+        System.err.println("Problem counting lines in merged_nodups and dups");
+        System.exit(1);
       }
-    
-      f = new File(args[0] + "/merged_nodups.txt");
-      if (f.exists()) {
-        reader = new BufferedReader(new FileReader(f));
-        while (reader.readLine() != null) uniqueReadPairs++;
-        reader.close();				
+    }
+    else {
+      try {
+        uniqueReadPairs = Integer.valueOf(args[0]);
+        readPairs = Integer.valueOf(args[1]);
+        opticalDups = Integer.valueOf(args[2]);
       }
-      f = new File(args[0] + "/dups.txt");
-      if (f.exists()) {
-        reader = new BufferedReader(new FileReader(args[0] + "/dups.txt"));
-        while (reader.readLine() != null) readPairs++;
-        reader.close();				
-        readPairs += uniqueReadPairs; 
+      catch (NumberFormatException error) {
+        System.err.println("When called with three arguments, must be integers");
+        System.exit(1);
       }
-    } catch (IOException error) {
-      System.err.println("Problem counting lines in merged_nodups and dups");
-      System.exit(1);
+      readPairs += uniqueReadPairs;
     }
     long result;
     try {

@@ -6,7 +6,7 @@ BEGIN{
 {
 	if (tot >= 1000000) {
 		if (p1 != $1 || p2 != $2 || p4 != $4 || p5 != $5 || p8 != $8) {
-			sname=sprintf("%s_msplit%03d_", groupname, name);
+			sname=sprintf("%s_msplit%04d_", groupname, name);
 			sysstring = sprintf("bsub -o %s -q %s -g %s -J %s \"awk -f /broad/aidenlab/neva/neva_scripts/dups.awk -v name=%s/%s %s/split%d; \"", outfile, queue, groupname, sname, dir, sname, dir, name, dir, name);
 			system(sysstring);
 			if (name==0) {
@@ -25,7 +25,7 @@ BEGIN{
 	tot++;
 }
 END {
-	sname=sprintf("%s_msplit%03d_", groupname, name);
+	sname=sprintf("%s_msplit%04d_", groupname, name);
 	sysstring = sprintf("bsub -o %s -q %s -g %s -J %s \"awk -f /broad/aidenlab/neva/neva_scripts/dups.awk -v name=%s/%s %s/split%d; \"", outfile, queue, groupname, sname, dir, sname, dir, name);
 	system(sysstring);
 	if (name==0) {

@@ -115,7 +115,7 @@ BEGIN{
 				}
 				# mapped is a "white list"; if lots of things are unmapped, might
 				# be because we don't recognize it here.
-				mapped[j] = tmp[3] ~ /^[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^arm/|| tmp[3] ~ /14m/ || tmp[3] ~ /14p/ || tmp[3] ~ /^chr[I,V,M,X]+/;
+				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,W,X,Y,Z,M][0-9,T]?$/ || tmp[3] ~ /^arm/|| tmp[3] ~ /14m/ || tmp[3] ~ /14p/ || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/|| tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
       }
 			
       dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
@@ -217,7 +217,7 @@ BEGIN{
 						pos[j] = pos[j] - 16569;
 					}
 				}
-				mapped[j] = tmp[3] ~ /^[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^arm/ || tmp[3] ~ /14m/ || tmp[3] ~ /14p/  || tmp[3] ~ /^chr[I,V,M,X]+/;
+				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^arm/ || tmp[3] ~ /14m/ || tmp[3] ~ /14p/  || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/ || tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
 				j++;
       }
       if (mapped[0] && mapped[1]) {
@@ -246,5 +246,184 @@ BEGIN{
   c[count] = $0;
 }
 END{
+    # deal with read pair group
+    tottot++;
+    if (count==3) {
+      # chimeric read
+      for (j=1; j <= 3; j++) {
+				split(c[j], tmp);
+				split(tmp[1],readname,"/");
+				read[j] = readname[2];
+				name[j] = tmp[1];
+
+				# strand
+				str[j] = tmp[2];
+				# chromosome
+				chr[j] = tmp[3];
+				# position
+				pos[j] = tmp[4];
+				# mapq score
+				m[j] = tmp[5];
+				# cigar string
+				cigarstr[j] = tmp[6];
+				# sequence
+				seq[j] = tmp[10];
+        qual[j] = tmp[11];
+				# get rid of soft clipping to know correct position
+				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
+					split(tmp[6], cigar, "S");
+					pos[j] = pos[j] - cigar[1];
+					if (pos[j] <= 0) {
+						pos[j] = 1;
+					}
+				}
+				else if (str[j] == 16) {
+					# count Ms,Ds,Ns,Xs,=s for sequence length 
+					seqlength=0; 
+					currstr=tmp[6];
+					# can look like 15M10S20M, need to count all not just first
+					where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
+					while (where>0) {
+						seqlength+=substr(currstr,where,RLENGTH-1)+0;
+						currstr=substr(currstr,where+RLENGTH);
+						where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+					}
+					pos[j] = pos[j] + seqlength - 1;
+					# add soft clipped bases in for proper position
+					if (tmp[6] ~ /[0-9]+S$/) {
+						where = match(tmp[6],/[0-9]+S$/);
+						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+						pos[j] = pos[j] + cigloc;
+					}
+					# Mitochrondria loops around
+					if (chr[j] ~ /MT/ && pos[j] >= 16569) {
+						pos[j] = pos[j] - 16569;
+					}
+				}
+				# mapped is a "white list"; if lots of things are unmapped, might
+				# be because we don't recognize it here.
+				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,W,X,Y,Z,M][0-9,T]?$/ || tmp[3] ~ /^arm/|| tmp[3] ~ /14m/ || tmp[3] ~ /14p/ || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/|| tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
+      }
+			
+      dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
+      dist[23] = abs(chr[2]-chr[3])*10000000 + abs(pos[2]-pos[3]);
+      dist[13] = abs(chr[1]-chr[3])*10000000 + abs(pos[1]-pos[3]);
+      
+      if (min(dist[12],min(dist[23],dist[13])) < 1000) {
+				# The paired ends look like A/B...B.  Make sure we take A and B.
+				if (read[1] == read[2]) {
+					# take the unique one "B" for sure
+					read2 = 3;
+					# take the end of "A/B" that isn't close to "B"
+					read1 = dist[13] > dist[23] ? 1:2;
+				}
+				else if (read[1] == read[3]) {
+					read2 = 2;
+					read1 = dist[12] > dist[23] ? 1:3;
+				}
+				else if (read[2] == read[3]) {
+					read2 = 1;
+					read1 = dist[12] > dist[13] ? 2:3;
+				}
+				else {
+					printf("reads strange\n") > "/dev/stderr"
+					exit 1
+				}
+				
+				if (mapped[read1] && mapped[read2]) {
+					count_norm++;
+					if (less_than(str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2])) {
+              print str[read1],chr[read1],pos[read1],str[read2],chr[read2],pos[read2],m[read1],cigarstr[read1],seq[read1],m[read2],cigarstr[read2],seq[read2],name[read1],name[read2] > fname1;
+					}
+					else {
+              print str[read2],chr[read2],pos[read2],str[read1],chr[read1],pos[read1],m[read2],cigarstr[read2],seq[read2],m[read1],cigarstr[read1],seq[read1],name[read2],name[read1] > fname1;
+					}
+				}
+				else {
+					for (i in c) {
+						print c[i] > fname3;
+					}	
+					count_unmapped++;
+				}
+      }
+			else {
+				# chimeric read with the 3 ends > 1KB apart
+				count_abnorm++;
+				for (i in c) {
+					print c[i] > fname2;
+				}
+      }
+    }
+    else if (count > 3) {
+      # chimeric read > 3, too many to deal with
+      count_abnorm++;
+      for (i in c) {
+				print c[i] > fname2;
+      }
+    }
+    else if (count == 2) {
+			# code here should be same as above, but it's a "normal" read
+      j = 0;
+      for (i in c) {
+				split(c[i], tmp);
+				split(tmp[1],readname,"/");
+				str[j] = tmp[2];
+				chr[j] = tmp[3];
+				pos[j] = tmp[4];
+				m[j] = tmp[5];
+				cigarstr[j] = tmp[6];
+				seq[j] = tmp[10];
+        qual[j] = tmp[11];
+				name[j] = tmp[1];
+				
+
+				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
+					split(tmp[6], cigar, "S");
+					pos[j] = pos[j] - cigar[1];
+					if (pos[j] <= 0) {
+						pos[j] = 1;
+					}
+				}
+				else if (str[j] == 16) {
+					# count Ms,Ds,Ns,Xs,=s for sequence length 
+					seqlength=0; 
+					currstr=tmp[6];
+					where=match(currstr, /[0-9]+[M|D|N|X|=]/); 
+					while (where>0) {
+						seqlength+=substr(currstr,where,RLENGTH-1)+0;
+						currstr=substr(currstr,where+RLENGTH);
+						where=match(currstr, /[0-9]+[M|D|N|X|=]/);
+					}
+					pos[j] = pos[j] + seqlength - 1;
+					if (tmp[6] ~ /[0-9]+S$/) {
+						where = match(tmp[6],/[0-9]+S$/);
+						cigloc = substr(tmp[6],where,RLENGTH-1) + 0;
+						pos[j] = pos[j] + cigloc;
+					}
+					if (chr[j] ~ /MT/ && pos[j] >= 16569) {
+						pos[j] = pos[j] - 16569;
+					}
+				}
+				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^arm/ || tmp[3] ~ /14m/ || tmp[3] ~ /14p/  || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/ || tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
+				j++;
+      }
+      if (mapped[0] && mapped[1]) {
+				count_reg++;
+				if (less_than(str[0],chr[0],pos[0],str[1],chr[1],pos[1])) {
+					# ideally we'll get rid of printing out cigar string at some point
+            print str[0],chr[0],pos[0],str[1],chr[1],pos[1],m[0],cigarstr[0],seq[0],m[1],cigarstr[1],seq[1],name[0],name[1] > fname1;
+				}
+				else {
+            print str[1],chr[1],pos[1],str[0],chr[0],pos[0],m[1],cigarstr[1],seq[1],m[0],cigarstr[0],seq[0],name[1],name[0] > fname1;
+				}
+      }
+      else {
+				for (i in c) {
+					print c[i] > fname3;
+				}	
+				count_unmapped++;
+      }
+    }
+    
   printf("%d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm) > fname1".res.txt";
 }

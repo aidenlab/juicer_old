@@ -30,21 +30,23 @@ use File::Basename;
 use POSIX;
 use List::Util qw[min max];
 use Getopt::Std;
-use vars qw/ $opt_s $opt_l $opt_d $opt_o $opt_h /;
+use vars qw/ $opt_s $opt_l $opt_d $opt_o $opt_q $opt_h /;
 
 # Check arguments
-getopts('s:l:o:h');
+getopts('s:l:o:q:h');
 
 my $site_file = "/broad/aidenlab/restriction_sites/hg19_DpnII.txt";
 my $ligation_junction = "GATCGATC";
 my $stats_file = "stats.txt";
+my $mapq_threshold = 1;
 
 if ($opt_h) {
-    print "Usage: statistics.pl -s[site file] -l[ligation] -o[stats file] <infile>\n";
+    print "Usage: statistics.pl -s[site file] -l[ligation] -o[stats file] -q[mapq threshold] <infile>\n";
     print " <infile>: file in intermediate format to calculate statistics on, can be stream\n";
     print " [site file]: list of HindIII restriction sites, one line per chromosome (default $site_file)\n";
     print " [ligation]: ligation junction (default $ligation_junction)\n";
     print " [stats file]: output file containing total reads, for library complexity (default $stats_file)\n";
+    print " [mapq threshold]: mapping quality threshold, do not consider reads < threshold (default $mapq_threshold)\n";
     exit;
 }
 if ($opt_s) {
@@ -55,6 +57,9 @@ if ($opt_l) {
 }
 if ($opt_o) {
   $stats_file = $opt_o;
+}
+if ($opt_q) {
+  $mapq_threshold = $opt_q;
 }
 if (scalar(@ARGV)==0) {
   print STDOUT "No input file specified, reading from input stream\n";
@@ -94,6 +99,9 @@ my $true_dangling_intra_small = 0;
 my $true_dangling_intra_large = 0;
 my $true_dangling_inter = 0;
 my $total_current = 0;
+my $under_mapq = 0;
+my $intra_fragment = 0;
+my $unique = 0;
 # logspace bins
 my @bins = (10,12,15,19,23,28,35,43,53,66,81,100,123,152,187,231,285,351,433,534,658,811,1000,1233,1520,1874,2310,2848,3511,4329,5337,6579,8111,10000,12328,15199,18738,23101,28480,35112,43288,53367,65793,81113,100000,123285,151991,187382,231013,284804,351119,432876,533670,657933,811131,1000000,1232847,1519911,1873817,2310130,2848036,3511192,4328761,5336699,6579332,8111308,10000000,12328467,15199111,18738174,23101297,28480359,35111917,43287613,53366992,65793322,81113083,100000000,123284674,151991108,187381742,231012970,284803587,351119173,432876128,533669923,657933225,811130831,1000000000,1232846739,1519911083,1873817423,2310129700,2848035868,3511191734,4328761281,5336699231,6579332247,8111308308,10000000000);
 
@@ -110,157 +118,171 @@ close(FILE);
 # read in infile and calculate statistics
 #open FILE, $infile or die $!;
 while (<>) {
-	$total_current++;
+  $unique++;
 	my @record = split;
-
-  #if ($record[1] != 1 || $record[5] != 1) {
-  #  print STDERR "break";
-  #  last;
-  #}
-
 	my $num_records = scalar(@record);
-	# position distance
-	my $pos_dist = abs($record[2] - $record[6]);
-	
-	my $hist_dist = &bsearch($pos_dist,\@bins);	 
-	
-	my $is_dangling = 0;
-	# one part of read pair has unligated end
-	if ($num_records > 8 && ($record[10] =~ m/^$dangling_junction/ || $record[13] =~ m/^$dangling_junction/)) {
-		$dangling++;
-		$is_dangling=1;
-	}
-	# look at chromosomes
-	if ($record[1] eq $record[5]) {
-		$intra++;
-		# determine right/left/inner/outer ordering of chromosomes/strands
-		if ($record[0] == $record[4]) {
-	    if ($record[0] == 0) {
-				if ($pos_dist >= 20000) {
-					$right++;
-				}
-				$rightM{$hist_dist}++;
-	    }
-	    else {
-				if ($pos_dist >= 20000) {
-					$left++;
-				}
-				$leftM{$hist_dist}++;
-	    }
-		}
-		else {
-	    if ($record[0] == 0) {
-				if ($record[2] < $record[6]) {
-					if ($pos_dist >= 20000) {
-						$inner++;
-					}
-					$innerM{$hist_dist}++;
-				}
-				else {
-					if ($pos_dist >= 20000) {
-						$outer++;
-					}
-					$outerM{$hist_dist}++;
-				}
-	    }
-	    else {
-				if ($record[2] < $record[6]) {
-					if ($pos_dist >= 20000) {
-						$outer++;
-					}
-					$outerM{$hist_dist}++;
-				}
-				else {
-					if ($pos_dist >= 20000) {
-						$inner++;
-					}
-					$innerM{$hist_dist}++;
-				}
-	    }
-		}
-		# intra reads less than 20KB apart
-		if ($pos_dist < 10) {
-	    $very_small++;
-	    if ($is_dangling) {
-				$very_small_dangling++;
-	    }
-		}
-		elsif ($pos_dist < 20000) {
-	    $small++;
-	    if ($is_dangling) {
-				$small_dangling++;
-	    }
-		}
-		else {
-	    $large++;
-	    if ($is_dangling) {
-				$large_dangling++;
-	    }
-		}
-	}
-	else {
-		$inter++;
-		if ($is_dangling) {
-	    $inter_dangling++;
-		}
-	}
-	if ($num_records > 8) {
+  # don't count as Hi-C contact if fails mapq or intra fragment test
+  my $countme = 1;
+
+  if ($record[1] == $record[5] && $record[3] == $record[7]) {
+    $intra_fragment++;
+    $countme = 0;
+  }
+	elsif ($num_records > 8) {
 		my $mapq_val = min($record[8],$record[11]);
-		if ($mapq_val <= 200) {
-			$mapQ{$mapq_val}++;
-			if ($record[1] eq $record[5]) {
-				$mapQ_intra{$mapq_val}++;
-			}
-			else {
-				$mapQ_inter{$mapq_val}++;
-			}
-		}
-		# read pair contains ligation junction
-		if ($record[10] =~ m/$ligation_junction/ || $record[13] =~ m/$ligation_junction/) {
-			$ligation++;
-		}
-	}
-	# determine distance from nearest HindIII site, add to histogram
-	my $report = ($record[1] != $record[5]) || ($pos_dist >= 20000);
-	my $dist = &distHindIII($record[0], $record[1], $record[2], $record[3], $report);
-	if ($dist <= 2000) {
-		$hindIII{$dist}++;
-	}
-	
-	$dist = &distHindIII($record[4], $record[5], $record[6], $record[7], $report);
-	if ($dist <= 2000) {
-		$hindIII{$dist}++;
-	}
-	
-	if ($is_dangling) {
-		if ($record[10] =~ m/^$dangling_junction/) {
-	    $dist = &distHindIII($record[0], $record[1], $record[2], $record[3], 1);
-		}
-		else { #	$record[13] =~ m/^$dangling_junction/) 
-	    $dist = &distHindIII($record[4], $record[5], $record[6], $record[7], 1);
-		}
-		if ($dist == 1) {
-	    if ($record[1] == $record[5]) {
-				if ($pos_dist < 20000) {
-					$true_dangling_intra_small++;
-				}
-				else {
-					$true_dangling_intra_large++;
-				}
-	    }
-	    else {
-				$true_dangling_inter++;
-	    }
-		}
-	}
+    if ($mapq_val < $mapq_threshold) {
+      $under_mapq++;
+      $countme = 0;
+    }
+  }
+
+
+  if ($countme) {
+    $total_current++;
+    # position distance
+    my $pos_dist = abs($record[2] - $record[6]);
+    
+    my $hist_dist = &bsearch($pos_dist,\@bins);	 
+    
+    my $is_dangling = 0;
+    # one part of read pair has unligated end
+    if ($num_records > 8 && ($record[10] =~ m/^$dangling_junction/ || $record[13] =~ m/^$dangling_junction/)) {
+      $dangling++;
+      $is_dangling=1;
+    }
+    # look at chromosomes
+    if ($record[1] eq $record[5]) {
+      $intra++;
+      # determine right/left/inner/outer ordering of chromosomes/strands
+      if ($record[0] == $record[4]) {
+        if ($record[0] == 0) {
+          if ($pos_dist >= 20000) {
+            $right++;
+          }
+          $rightM{$hist_dist}++;
+        }
+        else {
+          if ($pos_dist >= 20000) {
+            $left++;
+          }
+          $leftM{$hist_dist}++;
+        }
+      }
+      else {
+        if ($record[0] == 0) {
+          if ($record[2] < $record[6]) {
+            if ($pos_dist >= 20000) {
+              $inner++;
+            }
+            $innerM{$hist_dist}++;
+          }
+          else {
+            if ($pos_dist >= 20000) {
+              $outer++;
+            }
+            $outerM{$hist_dist}++;
+          }
+        }
+        else {
+          if ($record[2] < $record[6]) {
+            if ($pos_dist >= 20000) {
+              $outer++;
+            }
+            $outerM{$hist_dist}++;
+          }
+          else {
+            if ($pos_dist >= 20000) {
+              $inner++;
+            }
+            $innerM{$hist_dist}++;
+          }
+        }
+      }
+      # intra reads less than 20KB apart
+      if ($pos_dist < 10) {
+        $very_small++;
+        if ($is_dangling) {
+          $very_small_dangling++;
+        }
+      }
+      elsif ($pos_dist < 20000) {
+        $small++;
+        if ($is_dangling) {
+          $small_dangling++;
+        }
+      }
+      else {
+        $large++;
+        if ($is_dangling) {
+          $large_dangling++;
+        }
+      }
+    }
+    else {
+      $inter++;
+      if ($is_dangling) {
+        $inter_dangling++;
+      }
+    }
+    if ($num_records > 8) {
+      my $mapq_val = min($record[8],$record[11]);
+      if ($mapq_val <= 200) {
+        $mapQ{$mapq_val}++;
+        if ($record[1] eq $record[5]) {
+          $mapQ_intra{$mapq_val}++;
+        }
+        else {
+          $mapQ_inter{$mapq_val}++;
+        }
+      }
+      # read pair contains ligation junction
+      if ($record[10] =~ m/$ligation_junction/ || $record[13] =~ m/$ligation_junction/) {
+        $ligation++;
+      }
+    }
+    # determine distance from nearest HindIII site, add to histogram
+    my $report = ($record[1] != $record[5]) || ($pos_dist >= 20000);
+    my $dist = &distHindIII($record[0], $record[1], $record[2], $record[3], $report);
+    if ($dist <= 2000) {
+      $hindIII{$dist}++;
+    }
+    
+    $dist = &distHindIII($record[4], $record[5], $record[6], $record[7], $report);
+    if ($dist <= 2000) {
+      $hindIII{$dist}++;
+    }
+    
+    if ($is_dangling) {
+      if ($record[10] =~ m/^$dangling_junction/) {
+        $dist = &distHindIII($record[0], $record[1], $record[2], $record[3], 1);
+      }
+      else { #	$record[13] =~ m/^$dangling_junction/) 
+        $dist = &distHindIII($record[4], $record[5], $record[6], $record[7], 1);
+      }
+      if ($dist == 1) {
+        if ($record[1] == $record[5]) {
+          if ($pos_dist < 20000) {
+            $true_dangling_intra_small++;
+          }
+          else {
+            $true_dangling_intra_large++;
+          }
+        }
+        else {
+          $true_dangling_inter++;
+        }
+      }
+    }
+  }
 }
-#close(FILE);
 
 my($statsfilename, $directories, $suffix)= fileparse($stats_file, qr/\.[^.]*/);
 my $histsfile = $directories . $statsfilename . "_hists.m";
 my $statssupfile = $directories . $statsfilename . "_supp.txt";
-
 open FILE, " >> $stats_file", or die $!;
+print FILE "Unique Reads: " . commify($unique) . "\n";
+print FILE "Intra-fragment Reads: " . commify($intra_fragment) . "\n";
+print FILE "Non-uniquely Aligning Reads: " . commify($under_mapq) . "\n";
 print FILE "Total reads in current file: " . commify($total_current) . "\n";
 if ($total_current==0) {
 	$total_current=1;

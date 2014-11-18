@@ -54,10 +54,11 @@ about=""
 
 ## Read arguments
 usageHelp="Usage: ${0##*/} -g genomeID [-d topDir] [-q queue] [-s site] [-k key] [-a about] [-R end] [-r] [-e] [-h]"
-genomeHelp="   genomeID must be one of \"mm9\" (mouse), \"hg18\" \"hg19\" (human), \"sCerS288c\" (yeast), or \"dMel\" (fly)\n   alternatively, it can be the fasta file of the genome, but the BWA indices must already be created in the same directory"
+genomeHelp="   genomeID must be one of \"mm9\" (mouse), \"hg18\" \"hg19\" (human), \"sCerS288c\" (yeast), or \"dMel\" (fly)"
+#\n   alternatively, it can be the fasta file of the genome, but the BWA indices must already be created in the same directory"
 dirHelp="   [topDir] is the top level directory (default \"$topDir\")\n     [topDir]/fastq must contain the fastq files\n     [topDir]/splits will be created to contain the temporary split files\n     [topDir]/aligned will be created for the final alignment"
 queueHelp="   [queue] is the LSF queue for running alignments (default \"$queue\")"
-siteHelp="   [site] must be one of \"HindIII\", \"MseI\", \"NcoI\", \"DpnII\", \"MspI\", \"HinP1I\", \"StyD4I\", \"SaII\", \"NheI\", \"StyI\", \"XhoI\", \"NlaIII\", or \"merge\" (default \"$site\")"
+siteHelp="   [site] must be one of \"HindIII\", \"MseI\", \"NcoI\", \"DpnII\", \"MboI\",\"MspI\", \"HinP1I\", \"StyD4I\", \"SaII\", \"NheI\", \"StyI\", \"XhoI\", \"NlaIII\", or \"merge\" (default \"$site\")"
 shortHelp2="   [end]: use the short read aligner on end, must be one of 1 or 2 "
 shortHelp="   -r: use the short read version of the aligner (default long read)"
 keyHelp="   -k: key for menu item to put this file under"
@@ -103,19 +104,31 @@ done
 ## Set reference sequence based on genome ID
 case $genomeID in
     dMel) refSeq="/broad/aidenlab/references/Dmel_release5_first6.fasta";;
+    canFam3) refSeq="/seq/references/Canis_lupus_familiaris_assembly3/v0/Canis_lupus_familiaris_assembly3.fasta";;
     mm9) refSeq="/broad/aidenlab/references/Mus_musculus_assembly9_norandom.fasta";;
     hg19) refSeq="/seq/references/Homo_sapiens_assembly19/v1/Homo_sapiens_assembly19.fasta";;
+    hg18) refSeq="/seq/references/Homo_sapiens_assembly18/v-1/hg18.fasta";;
 		sCerS288c) refSeq="/broad/aidenlab/references/sacCer3.fa";;
-    *)  refSeq=$genomeID;;
-	echo "$genomeHelp"
-	exit 1
+    *)  echo "$usageHelp"
+        echo "$genomeHelp"
+        exit 1
+#    *)  refSeq=$genomeID;;
 esac
+
+## Check that refSeq exists 
+## Note that it really should, given that it is defined above
+if [ ! -e "$refSeq" ]; then
+    echo "Reference sequence $refSeq does not exist";
+    exit 1;
+fi
+
 
 ## Set ligation junction based on restriction enzyme
 case $site in
     HindIII) ligation="AAGCTAGCTT";;
     MseI)  ligation="TTATAA";;
     DpnII) ligation="GATCGATC";;
+    MboI) ligation="GATCGATC";;
     NcoI) ligation="CCATGCATGG";;
     *)  echo "$usageHelp"
 				echo "$siteHelp"
@@ -161,6 +174,11 @@ else
 		fi
 fi
 
+if [ ! -e "$site_file" ]; then
+    echo "$site_file does not exist. It must be created before running this script."
+    exit 1
+fi
+
 ## If key option is given, check that the key exists in the menu properties file
 if [ ! -z $key ] 
     then
@@ -191,6 +209,7 @@ fi
 ## Create temporary directory, used for sort later
 if [ ! -d "/broad/hptmp/neva" ]; then
     mkdir /broad/hptmp/neva
+    chmod 777 /broad/hptmp/neva
 fi
 
 ## use LSF cluster on Broad
