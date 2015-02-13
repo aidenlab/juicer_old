@@ -69,8 +69,8 @@ BEGIN{
 				read[j] = readname[2];
 				name[j] = tmp[1];
 
-				# strand
-				str[j] = tmp[2];
+				# strand; Bit 16 set means reverse strand
+				str[j] = and(tmp[2],16);
 				# chromosome
 				chr[j] = tmp[3];
 				# position
@@ -82,6 +82,7 @@ BEGIN{
 				# sequence
 				seq[j] = tmp[10];
         qual[j] = tmp[11];
+        
 				# get rid of soft clipping to know correct position
 				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
 					split(tmp[6], cigar, "S");
@@ -113,9 +114,8 @@ BEGIN{
 						pos[j] = pos[j] - 16569;
 					}
 				}
-				# mapped is a "white list"; if lots of things are unmapped, might
-				# be because we don't recognize it here.
-				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,W,X,Y,Z,M][0-9,T]?$/ || tmp[3] ~ /^arm/|| tmp[3] ~ /14m/ || tmp[3] ~ /14p/ || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/|| tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
+        # blacklist - if 3rd bit set (=4) it means unmapped
+        mapped[j] = and(tmp[2],4) == 0; 
       }
 			
       dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
@@ -180,7 +180,7 @@ BEGIN{
       for (i in c) {
 				split(c[i], tmp);
 				split(tmp[1],readname,"/");
-				str[j] = tmp[2];
+				str[j] = and(tmp[2],16);
 				chr[j] = tmp[3];
 				pos[j] = tmp[4];
 				m[j] = tmp[5];
@@ -188,7 +188,9 @@ BEGIN{
 				seq[j] = tmp[10];
         qual[j] = tmp[11];
 				name[j] = tmp[1];
-				
+
+        # blacklist - if 3rd bit set (=4) it means unmapped
+        mapped[j] = and(tmp[2],4) == 0; 
 
 				if (str[j] == 0 && tmp[6] ~/^[0-9]+S/) {
 					split(tmp[6], cigar, "S");
@@ -217,7 +219,6 @@ BEGIN{
 						pos[j] = pos[j] - 16569;
 					}
 				}
-				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^arm/ || tmp[3] ~ /14m/ || tmp[3] ~ /14p/  || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/ || tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
 				j++;
       }
       if (mapped[0] && mapped[1]) {
@@ -257,7 +258,7 @@ END{
 				name[j] = tmp[1];
 
 				# strand
-				str[j] = tmp[2];
+				str[j] = and(tmp[2],16);
 				# chromosome
 				chr[j] = tmp[3];
 				# position
@@ -300,9 +301,7 @@ END{
 						pos[j] = pos[j] - 16569;
 					}
 				}
-				# mapped is a "white list"; if lots of things are unmapped, might
-				# be because we don't recognize it here.
-				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,W,X,Y,Z,M][0-9,T]?$/ || tmp[3] ~ /^arm/|| tmp[3] ~ /14m/ || tmp[3] ~ /14p/ || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/|| tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
+        mapped[j] = and(tmp[2],4) == 0;
       }
 			
       dist[12] = abs(chr[1]-chr[2])*10000000 + abs(pos[1]-pos[2]);
@@ -367,7 +366,7 @@ END{
       for (i in c) {
 				split(c[i], tmp);
 				split(tmp[1],readname,"/");
-				str[j] = tmp[2];
+				str[j] = and(tmp[2],16);
 				chr[j] = tmp[3];
 				pos[j] = tmp[4];
 				m[j] = tmp[5];
@@ -404,7 +403,7 @@ END{
 						pos[j] = pos[j] - 16569;
 					}
 				}
-				mapped[j] = tmp[3] ~ /^[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/ || tmp[3] ~ /^chr[1-9,X,Y,M][0-9,T]?$/ || tmp[3] ~ /^arm/ || tmp[3] ~ /14m/ || tmp[3] ~ /14p/  || tmp[3] ~ /^chr[I,V,M,X]+/ || tmp[3] ~ /^Pf/ || tmp[3] ~ /M76611/ || tmp[3] ~ /KB/ || tmp[3] ~ /^[A,B,C,D,E,F][0-9]/ || tmp[3] ~ /^GeneScaffold_[0-9].*/ || tmp[3] ~ /^Scaffold[0-9].*/ || tmp[3] ~ /^scaffold[0-9].*/ || tmp[3] ~/^flattened_line_[0-9].*/ || tmp[3] ~ /^scaffold_[0-9,W,X,Y,Z,M][0-9]*[0-9,T]?$/;
+        mapped[j] = and(tmp[2],4) == 0;
 				j++;
       }
       if (mapped[0] && mapped[1]) {
@@ -425,5 +424,5 @@ END{
       }
     }
     
-  printf("%d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm) > fname1".res.txt";
+  printf("%d %d %d %d %d\n", tottot, count_unmapped, count_reg, count_norm, count_abnorm) >> fname1".res.txt";
 }

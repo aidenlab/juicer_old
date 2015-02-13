@@ -2,22 +2,27 @@
  * Taken from PicardTools 
  */
 import java.text.NumberFormat;
+import java.text.ParseException;
+import java.util.Locale;
 import java.io.FileReader;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.File;
 class LibraryComplexity {
   public static void main(String[] args) {
-    if (args.length != 1 && args.length != 3) {
-      System.out.println("Usage: java LibraryComplexity <directory>");
+    if (args.length != 2 && args.length != 3 && args.length != 1) {
+      System.out.println("Usage: java LibraryComplexity <directory> <output file>");
       System.out.println("     : java LibraryComplexity <unique> <pcr> <opt>");
       System.exit(0);
     }
+    NumberFormat nf = NumberFormat.getInstance(Locale.US);
+
     BufferedReader reader = null;
     long readPairs = 0;
     long uniqueReadPairs = 0;
     long opticalDups = 0;
-    if (args.length == 1) {
+    long totalReadPairs = 0;
+    if (args.length == 2 || args.length==1) {
       try {
         File f = new File(args[0] + "/opt_dups.txt");
         if (f.exists()) {
@@ -38,6 +43,28 @@ class LibraryComplexity {
           while (reader.readLine() != null) readPairs++;
           reader.close();				
           readPairs += uniqueReadPairs; 
+        }
+        String fname = "inter.txt";
+        if (args.length == 2) fname = args[1];
+        f = new File(args[0] + "/" + fname);
+        if (f.exists()) {
+          reader = new BufferedReader(new FileReader(args[0] + "/" + fname));
+          String line = reader.readLine();
+          boolean done = false;
+          while (line != null && !done) {
+            if (line.contains("Sequenced Read")) {
+              String[] parts = line.split(":");
+              try {
+                totalReadPairs = nf.parse(parts[1].trim()).longValue();
+              }
+              catch (ParseException e) {
+                totalReadPairs = 0;
+              }
+              done = true;
+            }
+            line = reader.readLine(); 
+          }
+          reader.close();
         }
       } catch (IOException error) {
         System.err.println("Problem counting lines in merged_nodups and dups");
@@ -64,13 +91,37 @@ class LibraryComplexity {
       System.err.println("Library complexity undefined when total = " + readPairs + " and unique = " + uniqueReadPairs);
       return;
     }
+    NumberFormat decimalFormat = NumberFormat.getPercentInstance();
+    decimalFormat.setMinimumFractionDigits(2);
+    decimalFormat.setMaximumFractionDigits(2);
+
     long result2 = readPairs*readPairs/(2*(readPairs-uniqueReadPairs));
     
-    System.out.println("Total reads after duplication removal: " + NumberFormat.getInstance().format(uniqueReadPairs));
-    System.out.println("Duplicate reads: " + NumberFormat.getInstance().format(readPairs - uniqueReadPairs));
-    System.out.println("Optical duplicates: " + NumberFormat.getInstance().format(opticalDups));
-    System.out.println("Library complexity (new): " + NumberFormat.getInstance().format(result));
-    System.out.println("Library complexity (old): " + NumberFormat.getInstance().format(result2));
+    System.out.print("Unique Reads: " + NumberFormat.getInstance().format(uniqueReadPairs) + " ");
+    if (totalReadPairs > 0) {
+      System.out.println("(" + decimalFormat.format(uniqueReadPairs/(double)totalReadPairs) + ")");
+    }
+    else {
+      System.out.println();
+    }
+
+    System.out.print("PCR Duplicates: " + nf.format(readPairs - uniqueReadPairs) + " ");
+    if (totalReadPairs > 0) {
+      System.out.println("(" + decimalFormat.format((readPairs - uniqueReadPairs)/(double)totalReadPairs) + ")");
+    }
+    else {
+      System.out.println();
+    }
+    System.out.print("Optical Duplicates: " + nf.format(opticalDups) + " ");
+    if (totalReadPairs > 0) {
+      System.out.println("(" + decimalFormat.format(opticalDups/(double)totalReadPairs) + ")");
+    }
+    else {
+      System.out.println();
+    }
+
+    System.out.println("Library Complexity Estimate: " + nf.format(result));
+    //    System.out.println("Library complexity (old): " + nf.format(result2));
 		
   }
 

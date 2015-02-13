@@ -28,6 +28,15 @@ do
   name1=${name}${read1str}
   name2=${name}${read2str}
 
+  # count ligations
+  echo -e '#!/bin/bash -l' > tmp
+  echo -e "#BSUB -q $queue" >> tmp
+  echo -e "#BSUB -o $topDir/lsf.out\n" >> tmp
+  echo -e "#BSUB -g $groupname" >> tmp
+  echo -e "num1=\$(paste $name1$ext $name2$ext | grep -c $ligation)" >> tmp
+  echo -e "echo -ne \"\$num1 \" > $name${ext}_norm.txt.res.txt" >> tmp
+  bsub < tmp
+
   # align read1 fastq
   echo -e '#!/bin/bash -l' > tmp
   echo -e "#BSUB -q $queue" >> tmp
@@ -84,7 +93,7 @@ do
   echo -e "#BSUB -g $groupname" >> tmp
   echo -e "#BSUB -w \"done(${groupname}${name1}${ext}) && done(${groupname}${name2}${ext})\"" >> tmp
   echo -e "#BSUB -J ${groupname}merge${name}${ext}\n" >> tmp
-  echo -e "source /broad/software/scripts/useuse\nreuse Java-1.6" >> tmp
+  echo -e "source /broad/software/scripts/useuse\nreuse Java-1.7" >> tmp
   echo -e "export LC_ALL=C" >> tmp
   # sort read 1 aligned file by readname 
   echo -e "if ! sort -k1,1 $name1$ext.sam > $name1${ext}_sort.sam" >> tmp
@@ -99,7 +108,7 @@ do
   echo -e "sort -k1,1 -m $name1${ext}_sort1.sam $name2${ext}_sort1.sam > $name$ext.sam" >> tmp
   echo -e "rm $name1$ext.sa* $name2$ext.sa* $name1${ext}_sort*.sam $name2${ext}_sort*.sam" >> tmp
   # call chimeric.awk to deal with chimeric reads; sorted file is sorted by read name at this point
-  echo -e "awk -v \"fname1\"=$name${ext}_norm.txt -v \"fname2\"=$name${ext}_abnorm.sam -v \"fname3\"=$name${ext}_unmapped.sam -f /broad/aidenlab/neva/neva_scripts/chimeric.awk $name$ext.sam" >> tmp
+  echo -e "awk -v \"fname1\"=$name${ext}_norm.txt -v \"fname2\"=$name${ext}_abnorm.sam -v \"fname3\"=$name${ext}_unmapped.sam -f /broad/aidenlab/neva/neva_scripts/chimeric_blacklist.awk $name$ext.sam" >> tmp
   # if any normal reads were written, find what fragment they correspond to and store that
 	echo -e "if [ -e \"$name${ext}_norm.txt\" ]" >> tmp
 	echo -e "then " >> tmp 
@@ -209,9 +218,9 @@ if [ -z "$earlyexit" ]
 		echo -e "echo Splits done, launching other jobs." >> tmp
 		echo -e "bkill -J ${groupname}_clean2" >> tmp
 		echo "bsub -o $topDir/lsf.out -q $queue -g ${groupname}_clean -w \"done(${groupname}_kill)\" \"echo /broad/aidenlab/neva/neva_scripts/relaunch_dups.sh $flags > $topDir/relaunchme.sh\" " >> tmp
-		echo "bsub -o $topDir/lsf.out -q $queue -g $groupname -w \"done(${groupname}_split)\" -J ${groupname}stats \"source /broad/software/scripts/useuse; reuse Java-1.6; /broad/aidenlab/neva/neva_scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt; export LC_ALL=en_US.UTF-8; echo 'Experiment description: $about' > $outputdir/inter.txt; cat $splitdir/*.res.txt | awk -f /broad/aidenlab/neva/neva_scripts/stats_sub.awk >> $outputdir/inter.txt; java -cp /broad/aidenlab/neva/neva_scripts/ LibraryComplexity $outputdir >> $outputdir/inter.txt; /broad/aidenlab/neva/neva_scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt; cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam; cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam; awk -f /broad/aidenlab/neva/neva_scripts/abnormal.awk $outputdir/abnormal.sam > $outputdir/abnormal.txt\" " >> tmp
-		echo -e "bsub -o $topDir/lsf.out  -q $queue -R \"rusage[mem=4]\" -g $groupname -w  \"done(${groupname}stats)\" -J ${groupname}hic \" source /broad/software/scripts/useuse; reuse Java-1.6; awk -v thresh=1 -f /broad/aidenlab/neva/neva_scripts/mapq.awk $outputdir/merged_nodups.txt | cut -d' ' -f1,2,3,4,5,6,7,8 > $outputdir/merged_nodups_small.txt; /broad/aidenlab/HiCTools/hictools pairsToBin $outputdir/merged_nodups_small.txt $outputdir/merged_nodups.bin $genomeID ; /broad/aidenlab/HiCTools/hictools pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m $outputdir/merged_nodups.bin $outputdir/inter.hic $genomeID ; /broad/aidenlab/HiCTools/hictools addNorm $outputdir/inter.hic;  if [[ $topDir == *MiSeq* ]]; then mkdir $newdir; ln -s $outputdir/inter*.hic $newdir/. ; echo leaf${newleaf} = ${key}, ${hicdir} ${about} \(\\\$(awk '{sum+=\\\$1}END{print sum}' $splitdir/*.res.txt)\), http://iwww.broadinstitute.org/igvdata/hic/files/${hicdir}/inter.hic >> /broad/aidenlab/hic_files/hicInternalMenu.properties;  fi  \" " >> tmp
-		echo -e "bsub -o $topDir/lsf.out  -q $queue -R \"rusage[mem=4]\" -g $groupname -w  \"done(${groupname}_split)\" -J ${groupname}hic30 \"source /broad/software/scripts/useuse; reuse Java-1.6; /broad/aidenlab/neva/neva_scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt; awk -v thresh=30 -f /broad/aidenlab/neva/neva_scripts/mapq.awk $outputdir/merged_nodups.txt | cut -d' ' -f1,2,3,4,5,6,7,8 > $outputdir/merged_nodups_small_30.txt; /broad/aidenlab/HiCTools/hictools pairsToBin $outputdir/merged_nodups_small_30.txt $outputdir/merged_nodups_30.bin $genomeID; /broad/aidenlab/HiCTools/hictools pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m $outputdir/merged_nodups_30.bin $outputdir/inter_30.hic $genomeID; /broad/aidenlab/HiCTools/hictools addNorm $outputdir/inter_30.hic; \"" >> tmp
+		echo "bsub -o $topDir/lsf.out -q $queue -g $groupname -w \"done(${groupname}_split)\" -J ${groupname}stats \"source /broad/software/scripts/useuse; reuse Java-1.7; /broad/aidenlab/neva/neva_scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/stats_dups.txt $outputdir/dups.txt; export LC_ALL=en_US.UTF-8; echo 'Experiment description: $about' > $outputdir/inter.txt; cat $splitdir/*.res.txt | awk -f /broad/aidenlab/neva/neva_scripts/stats_sub.awk >> $outputdir/inter.txt; java -cp /broad/aidenlab/neva/neva_scripts/ LibraryComplexity $outputdir inter.txt >> $outputdir/inter.txt; /broad/aidenlab/neva/neva_scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter.txt -q 1 $outputdir/merged_nodups.txt; cat $splitdir/*_abnorm.sam > $outputdir/abnormal.sam; cat $splitdir/*_unmapped.sam > $outputdir/unmapped.sam; awk -f /broad/aidenlab/neva/neva_scripts/abnormal.awk $outputdir/abnormal.sam > $outputdir/abnormal.txt\" " >> tmp
+		echo -e "bsub -o $topDir/lsf.out  -q $queue -R \"rusage[mem=4]\" -g $groupname -w  \"done(${groupname}stats)\" -J ${groupname}hic \" source /broad/software/scripts/useuse; reuse Java-1.7; /broad/aidenlab/juicebox pre -f $site_file -s $outputdir/inter.txt -g $outputdir/inter_hists.m -q 1 $outputdir/merged_nodups.txt $outputdir/inter.hic $genomeID ; if [[ $topDir == *MiSeq* ]]; then mkdir $newdir; ln -s $outputdir/inter*.hic $newdir/. ; echo leaf${newleaf} = ${key}, ${hicdir} ${about} \(\\\$(awk '{sum+=\\\$1}END{print sum}' $splitdir/*.res.txt)\), https://iwww.broadinstitute.org/igvdata/hic/files/${hicdir}/inter.hic >> /broad/aidenlab/hic_files/hicInternalMenu.properties;  fi  \" " >> tmp
+		echo -e "bsub -o $topDir/lsf.out  -q $queue -R \"rusage[mem=4]\" -g $groupname -w  \"done(${groupname}_split)\" -J ${groupname}hic30 \"source /broad/software/scripts/useuse; reuse Java-1.7; export LC_ALL=en_US.UTF-8; echo 'Experiment description: $about' > $outputdir/inter_30.txt; cat $splitdir/*.res.txt | awk -f /broad/aidenlab/neva/neva_scripts/stats_sub.awk >> $outputdir/inter_30.txt; java -cp /broad/aidenlab/neva/neva_scripts/ LibraryComplexity $outputdir inter_30.txt >> $outputdir/inter_30.txt;   /broad/aidenlab/neva/neva_scripts/statistics.pl -s $site_file -l $ligation -o $outputdir/inter_30.txt -q 30 $outputdir/merged_nodups.txt; /broad/aidenlab/juicebox pre -f $site_file -s $outputdir/inter_30.txt -g $outputdir/inter_30_hists.m -q 30 $outputdir/merged_nodups.txt $outputdir/inter_30.hic $genomeID \" " >> tmp 
 		bsub < tmp
 		rm tmp
 
@@ -230,7 +239,7 @@ if [ -z "$earlyexit" ]
 		echo -e "#BSUB -g ${groupname}_clean" >> tmp
 		echo -e "#BSUB -J ${groupname}_clean3" >> tmp
 		echo -e "#BSUB -w \"done(${groupname}launch)\"" >> tmp
-		echo -e "bsub -o $topDir/lsf.out -q $queue -g ${groupname} -w \"done(${groupname}stats) && done(${groupname}hic) && done(${groupname}hic30)\" \"rm $outputdir/merged_nodups_small.txt $outputdir/merged_nodups.bin $outputdir/merged_nodups_small_30.txt $outputdir/merged_nodups_30.bin; bkill -g ${groupname}_clean 0\" " >> tmp
+		echo -e "bsub -o $topDir/lsf.out -q $queue -g ${groupname} -w \"done(${groupname}stats) && done(${groupname}hic) && done(${groupname}hic30)\" \"bkill -g ${groupname}_clean 0; echo 'Pipeline successfully completed'\" " >> tmp
 		bsub < tmp
 		rm tmp
 fi

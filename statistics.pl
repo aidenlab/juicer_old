@@ -124,7 +124,7 @@ while (<>) {
   # don't count as Hi-C contact if fails mapq or intra fragment test
   my $countme = 1;
 
-  if ($record[1] == $record[5] && $record[3] == $record[7]) {
+  if (($record[1] eq $record[5]) && $record[3] == $record[7]) {
     $intra_fragment++;
     $countme = 0;
   }
@@ -274,50 +274,120 @@ while (<>) {
       }
     }
   }
-}
+ }
 
 my($statsfilename, $directories, $suffix)= fileparse($stats_file, qr/\.[^.]*/);
 my $histsfile = $directories . $statsfilename . "_hists.m";
-my $statssupfile = $directories . $statsfilename . "_supp.txt";
-open FILE, " >> $stats_file", or die $!;
-print FILE "Unique Reads: " . commify($unique) . "\n";
-print FILE "Intra-fragment Reads: " . commify($intra_fragment) . "\n";
-print FILE "Non-uniquely Aligning Reads: " . commify($under_mapq) . "\n";
-print FILE "Total reads in current file: " . commify($total_current) . "\n";
-if ($total_current==0) {
-	$total_current=1;
+
+my $seq=0;
+if (-e $stats_file) {
+  open FILE, $stats_file or die $!;
+  while (<FILE>) {
+    if (/Sequenced/g) {
+      ($label, $reads) = split(':', $_);
+      $seq=1;
+      $reads =~ s/,//g;
+      $reads =~ s/ //g;
+    }
+  } 
+  close FILE;
 }
-printf FILE "Ligations: %s (%0.2f\%)\n", commify($ligation), $ligation*100/$total_current;
-if ($five_prime_end + $three_prime_end > 0) {
-	printf FILE "Five prime: %s (%0.2f\%)\n", commify($five_prime_end), $five_prime_end*100/($five_prime_end + $three_prime_end);
-	printf FILE "Three prime: %s (%0.2f\%)\n", commify($three_prime_end), $three_prime_end*100/($five_prime_end + $three_prime_end);
+open FILE, " >> $stats_file", or die $!;
+if ($unique==0) {
+	$unique=1;
+}
+
+print FILE "Intra-fragment Reads: " . commify($intra_fragment);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $intra_fragment*100/$reads; 
 }
 else {
-	printf FILE "Five prime: $five_prime_end (%0.2f\%)\n", 0;
-	printf FILE "Three prime: $three_prime_end (%0.2f\%)\n", 0;
+  print FILE "(";
 }
-printf FILE "Inter: %s (%0.2f\%)\n", commify($inter), $inter*100/$total_current;
-printf FILE "Intra: %s (%0.2f\%)\n", commify($intra), $intra*100/$total_current;
-printf FILE "Small: %s (%0.2f\%)\n", commify($small), $small*100/$total_current;
-printf FILE "Large: %s (%0.2f\%)\n", commify($large), $large*100/$total_current;
-printf FILE "Very small: %s (%0.2f\%)\n", commify($very_small), $very_small*100/$total_current;
-if ($large > 0) {
-	printf FILE "Inner: %s (%0.2f\%) \n", commify($inner), $inner*100/$large;
-	printf FILE "Outer: %s (%0.2f\%) \n", commify($outer), $outer*100/$large;
-	printf FILE "Left: %s (%0.2f\%) \n", commify($left), $left*100/$large;
-	printf FILE "Right: %s (%0.2f\%) \n", commify($right), $right*100/$large;
-}
-close FILE;
+printf FILE "%0.2f\%)\n", $intra_fragment*100/$unique; 
 
-open FILE, " > $statssupfile", or die $!;
-printf FILE "Dangling: %s (%0.2f\%)\n", commify($dangling), $dangling*100/$total_current;
-printf FILE "  Very small: %s (%0.2f\%)\n", commify($very_small_dangling), $very_small_dangling*100/$total_current;
-printf FILE "  Small: %s (%0.2f\%)\n", commify($small_dangling),$small_dangling*100/$total_current;
-printf FILE "  Large: %s (%0.2f\%)\n", commify($large_dangling),$large_dangling*100/$total_current;
-printf FILE "  Inter: %s (%0.2f\%)\n", commify($inter_dangling),$inter_dangling*100/$total_current;
-printf FILE "  True Small: %s (%0.2f\%)\n", commify($true_dangling_intra_small),$true_dangling_intra_small*100/$total_current;
-printf FILE "  True Large: %s (%0.2f\%)\n", commify($true_dangling_intra_large),$true_dangling_intra_large*100/$total_current;
-printf FILE "  True Inter: %s (%0.2f\%)\n", commify($true_dangling_inter),$true_dangling_inter*100/$total_current;
+print FILE "Below MAPQ Threshold: " . commify($under_mapq);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $under_mapq*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $under_mapq*100/$unique; 
+
+print FILE "Hi-C Contacts: " . commify($total_current);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $total_current*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $total_current*100/$unique; 
+
+printf FILE " Ligation Motif Present: %s ", commify($ligation);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $ligation*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $ligation*100/$unique; 
+
+if ($five_prime_end + $three_prime_end > 0) {
+  my $f1 = $three_prime_end*100/($five_prime_end + $three_prime_end);
+  my $f2 = $five_prime_end*100/($five_prime_end + $three_prime_end);
+  printf FILE " 3' Bias (Long Range): %0.0f\%", $f1;
+  printf FILE " - %0.0f\%\n", $f2;
+}
+else {
+  print FILE " 3' Bias (Long Range): 0\% \- 0\%\n";
+}
+if ($large > 0) {
+	printf FILE " Pair Type %(L-I-O-R): %0.0f\%", $left*100/$large;
+  printf FILE " - %0.0f\%", $inner*100/$large;
+  printf FILE " - %0.0f\%", $outer*100/$large;
+  printf FILE " - %0.0f\%\n", $right*100/$large;
+}
+else {
+	print FILE " Pair Type %(L-I-O-R): 0\% - 0\% - 0\% - 0\%\n";
+}
+
+printf FILE "Inter-chromosomal: %s ", commify($inter);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $inter*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $inter*100/$unique; 
+
+printf FILE "Intra-chromosomal: %s ", commify($intra);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $intra*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $intra*100/$unique; 
+
+printf FILE "Short Range (<20Kb): %s ", commify($small);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $small*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $small*100/$unique; 
+
+printf FILE "Long Range (>20Kb): %s ", commify($large);
+if ($seq == 1) {
+  printf FILE " (%0.2f\% / ", $large*100/$reads; 
+}
+else {
+  print FILE "(";
+}
+printf FILE "%0.2f\%)\n", $large*100/$unique; 
+
 close FILE;
 
 open FILE, "> $histsfile", or die $!; 
