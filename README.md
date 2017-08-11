@@ -1,6 +1,6 @@
 # Old version of Juicer
 
-Old version of [Juicer](http://github.com/theaidenlab/juicer/wiki), preserved here for archival purposes.  Runs on LSF.  See Releases for the different versions.
+Old version of [Juicer](http://github.com/theaidenlab/juicer/wiki), preserved here for archival purposes.  Runs on LSF.  See [Releases](https://github.com/theaidenlab/juicer_old/releases) for the different versions.
 
 The hictools jars for creating .hic files (later renamed juicer_tools.jar) can be found here:
 
